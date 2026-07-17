@@ -5,8 +5,7 @@ import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 import authRoutes from './routes/authRoutes.js';
-import apiRoutes from './routes/apiRoutes.js'; // Haddii aad router-ka kale ku dartay
-import authRoutes from './routes/authRoutes.js';
+import apiRoutes from './routes/apiRoutes.js';
 
 dotenv.config();
 
@@ -38,16 +37,13 @@ app.get('/api/health', (req, res) => {
 
 // Routes-ka rasmiga ah
 app.use('/api/auth', authRoutes);
-if (apiRoutes) {
-  app.use('/api', apiRoutes); 
-}
+app.use('/api', apiRoutes);
 
-// Endpoint-ka tijaabada ah ee diiwaangelinta Vendor-ka (La saxay!)
+// Endpoint-ka tijaabada ah ee diiwaangelinta Vendor-ka
 app.post('/api/vendors/register', async (req, res) => {
   try {
     const { name, email, phone, password, shopName } = req.body;
 
-    // Hubi in dhammaan xogtii loogu baahnaa Schema-ha cusub la keenay
     if (!name || !email || !phone || !password) {
        res.status(400).json({ error: 'Fadlan buuxi name, email, phone, iyo password' });
        return;

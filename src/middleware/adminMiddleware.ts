@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { AuthenticatedRequest } from './authMiddleware.js'; // Hubi in magaca faylku sax yahay
+import { AuthenticatedRequest } from './authMiddleware.js';
 
 /**
  * requireAdmin Middleware
@@ -12,10 +12,10 @@ export const requireAdmin = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = req.user;
+    const userRole = req.userRole;
 
-    // 1. Hubi in adeegsaduhu jiro (ka soo gudbay authenticateToken)
-    if (!user) {
+    // 1. Hubi in adeegsaduhu soo galay (ka soo gudbay authenticateToken)
+    if (!userRole) {
       res.status(401).json({ 
         success: false, 
         error: 'Fadlan marka hore iska diiwaangeli nidaamka.' 
@@ -24,7 +24,7 @@ export const requireAdmin = async (
     }
 
     // 2. Hubi in doorka adeegsaduhu yahay ADMIN
-    if (user.role !== 'ADMIN') {
+    if (userRole !== 'ADMIN') {
       res.status(403).json({ 
         success: false, 
         error: 'Fadlan laguma oggola inaad gasho qaybtan. Admin oo kaliya ayaa geli kara.' 
