@@ -1,0 +1,101 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+// 1. Macmiilka Wax Iibsanaya (User) & Admin-ka
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  phone     String   @unique
+  role      String   @default("USER") // "USER" ama "ADMIN"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+}
+
+// 2. Iibiyaha Dukaanka Leh (Vendor)
+model Vendor {
+  id        String    @id @default(uuid())
+  name      String
+  email     String    @unique
+  password  String
+  phone     String    @unique
+  shopName  String?
+  status    String    @default("PENDING") // "PENDING", "APPROVED", "BLOCKED"
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+  orders    Order[]
+}
+
+// 3. Qaybaha Alaabta (Category)
+model Category {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  products  Product[]
+}
+
+// 4. Alaabta (Product) - Waxay ku xirantahay Vendor iyo Category
+model Product {
+  id          String      @id @default(uuid())
+  title       String
+  description String
+  price       Float
+  image       String?
+  stock       Int         @default(0)
+  vendorId    String
+  vendor      Vendor      @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    Category    @relation(fields: [categoryId], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  orderItems  OrderItem[]
+}
+
+// 5. Dalabaadka (Order) - Waxay ku xirantahay User, Vendor iyo Payment
+model Order {
+  id              String      @id @default(uuid())
+  userId          String      
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vendorId        String      
+  vendor      Vendor      @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  shippingAddress String
+  totalAmount     Float
+  status          String      @default("PENDING") // "PENDING", "PAID", "SHIPPED", "COMPLETED", "CANCELLED"
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  items           OrderItem[]
+  payments        Payment[]
+}
+
+// 6. Waxyaabaha dalabka ku jira (OrderItem)
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Float
+}
+
+// 7. Diiwaanka Lacag-bixinta (Payment)
+model Payment {
+  id            String   @id @default(uuid())
+  orderId       String
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount        Float
+  gateway       String   // "ZAAD", "EDAHAB", "KAASHPAY"
+  transactionId String?  @unique
+  status        String   @default("PENDING") // "PENDING", "SUCCESS", "FAILED"
+  payerPhone    String   
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
