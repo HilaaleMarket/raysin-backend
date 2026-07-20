@@ -3,49 +3,94 @@ datasource db {
 }
 
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+enum Role {
+  admin
+  vendor
+  user
+}
+
+enum OrderStatus {
+  pending
+  paid
+  approved
+  shipped
+  completed
+  cancelled
+  failed
+}
+
+enum VendorTier {
+  STANDARD
+  PRO
+  ALPHA
+}
+
+enum TransactionType {
+  PURCHASE
+  COMMISSION
+  WITHDRAWAL
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
 }
 
 // 1. Macmiilka Wax Iibsanaya (User) & Admin-ka
 model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  phone     String   @unique
-  role      String   @default("USER") // "USER" ama "ADMIN"
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  orders    Order[]
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  phone        String   @unique
+  password     String
+  role         Role     @default(user)
+  referralCode String   @unique
+  referredById String?
+  referredBy   User?    @relation("UserReferrals", fields: [referredById], references: [id])
+  referrals    User[]   @relation("UserReferrals")
+  points       Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  wallet       Wallet?
+  orders       Order[]
 }
 
 // 2. Iibiyaha Dukaanka Leh (Vendor)
 model Vendor {
-  id        String    @id @default(uuid())
-  name      String
-  email     String    @unique
-  password  String
-  phone     String    @unique
-  shopName  String?
-  status    String    @default("PENDING") // "PENDING", "APPROVED", "BLOCKED"
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  products  Product[]
-  orders    Order[]
+  id             String     @id @default(uuid())
+  name           String
+  email          String     @unique
+  password       String
+  phone          String     @unique
+  shopName       String?
+  status         String     @default("pending")
+  balance        Float      @default(0.0)
+  totalSales     Float      @default(0.0)
+  tier           VendorTier @default(STANDARD)
+  commissionRate Float      @default(0.10)
+  rating         Float      @default(5.0)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  products       Product[]
+  orders         Order[]
 }
 
 // 3. Qaybaha Alaabta (Category)
 model Category {
-  id        String    @id @default(uuid())
-  name      String    @unique
-  products  Product[]
+  id       String    @id @default(uuid())
+  name     String    @unique
+  products Product[]
 }
 
-// 4. Alaabta (Product) - Waxay ku xirantahay Vendor iyo Category
+// 4. Alaabta (Product)
 model Product {
   id          String      @id @default(uuid())
-  title       String
+  name        String
   description String
   price       Float
   image       String?
@@ -59,16 +104,16 @@ model Product {
   orderItems  OrderItem[]
 }
 
-// 5. Dalabaadka (Order) - Waxay ku xirantahay User, Vendor iyo Payment
+// 5. Dalabaadka (Order)
 model Order {
   id              String      @id @default(uuid())
-  userId          String      
+  userId          String
   user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  vendorId        String      
-  vendor      Vendor      @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  vendorId        String
+  vendor          Vendor      @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   shippingAddress String
   totalAmount     Float
-  status          String      @default("PENDING") // "PENDING", "PAID", "SHIPPED", "COMPLETED", "CANCELLED"
+  status          OrderStatus @default(pending)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   items           OrderItem[]
@@ -77,11 +122,11 @@ model Order {
 
 // 6. Waxyaabaha dalabka ku jira (OrderItem)
 model OrderItem {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   orderId   String
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId String
-  product   Product  @relation(fields: [productId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
   quantity  Int
   price     Float
 }
@@ -92,10 +137,27 @@ model Payment {
   orderId       String
   order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   amount        Float
-  gateway       String   // "ZAAD", "EDAHAB", "KAASHPAY"
+  gateway       String
   transactionId String?  @unique
-  status        String   @default("PENDING") // "PENDING", "SUCCESS", "FAILED"
-  payerPhone    String   
+  status        String   @default("pending")
+  payerPhone    String
   createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// 8. Boorsada Macmiilka (User Wallet)
+model Wallet {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance   Float    @default(0.0)
+  points    Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+// 9. Boorsada Dhexe ee Shirkadda (Company Wallet)
+model CompanyWallet {
+  id            String   @id @default("HILAALE_GLOBAL_WALLET")
+  totalEarnings Float    @default(0.0)
   updatedAt     DateTime @updatedAt
 }

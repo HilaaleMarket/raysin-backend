@@ -2,25 +2,23 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../server.js';
+import { Role } from '@prisma/client';
 
-// Cadadka cusbada ee bcrypt (Salt Rounds)
 const SALT_ROUNDS = 10;
-const JWT_SECRET = process.env.JWT_SECRET || 'raysin_super_secret_key_2026';
+const JWT_SECRET = process.env.JWT_SECRET || 'hilaale_super_secret_key_2026';
 
 /**
- * 1. DIIWAANGELINTA USER (Macaamiisha caadiga ah & Admin-ka)
+ * 1. DIIWAANGELINTA USER
  */
 export const registerUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, email, phone, password, role } = req.body;
 
-    // 1. Hubi in dhammaan xogtii loo baahnaa la keenay
     if (!name || !email || !phone || !password) {
-      res.status(400).json({ error: 'Fadlan buuxi dhammaan meelaha bannaan.' });
+      res.status(400).json({ success: false, error: 'Fadlan buuxi dhammaan meelaha bannaan.' });
       return;
     }
 
-    // 2. Hubi haddii iimaylka ama telefoonka mar hore la isticmaalay
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [{ email }, { phone }]
@@ -28,26 +26,29 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
     });
 
     if (existingUser) {
-      res.status(400).json({ error: 'Iimaylkan ama telefoonkan mar hore ayaa la isticmaalay.' });
+      res.status(400).json({ success: false, error: 'Iimaylkan ama telefoonkan mar hore ayaa la isticmaalay.' });
       return;
     }
 
-    // 3. Go'aami doorka qofka (Haddii aan la soo dirin doorku wuxuu noqonayaa USER)
-    const userRole = role && ['USER', 'ADMIN'].includes(role.toUpperCase()) 
-      ? role.toUpperCase() 
-      : 'USER';
+    let userRole: Role = Role.user;
+    if (role) {
+      const lowerRole = role.toLowerCase();
+      if (lowerRole === 'admin') userRole = Role.admin;
+      if (lowerRole === 'vendor') userRole = Role.vendor;
+      if (lowerRole === 'user') userRole = Role.user;
+    }
 
-    // 4. Hash-garee furaha sirta ah (Password hashing)
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+    const generatedReferralCode = `REF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-    // 5. Ku keydi User-ka cusub Database-ka
     const newUser = await prisma.user.create({
       data: {
         name,
         email,
         phone,
         password: hashedPassword,
-        role: userRole
+        role: userRole,
+        referralCode: generatedReferralCode
       },
       select: {
         id: true,
@@ -67,37 +68,34 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
 
   } catch (error: any) {
     console.error("User registration error:", error);
-    res.status(500).json({ error: 'Cilad baa dhacday marka la diiwaangelinayey isticmaalaha.' });
+    res.status(500).json({ success: false, error: 'Cilad baa dhacday marka la diiwaangelinayey isticmaalaha.' });
   }
 };
 
 /**
- * 2. SOO GALKA USER (Login macaamiisha & Admin-ka)
+ * 2. SOO GALKA USER
  */
 export const loginUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      res.status(400).json({ error: 'Fadlan buuxi iimaylka iyo password-ka.' });
+      res.status(400).json({ success: false, error: 'Fadlan buuxi iimaylka iyo password-ka.' });
       return;
     }
 
-    // 1. Ka raadi user-ka database-ka
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      res.status(401).json({ error: 'Iimaylka ama password-ka aad gelisay waa khalad.' });
+      res.status(401).json({ success: false, error: 'Iimaylka ama password-ka aad gelisay waa khalad.' });
       return;
     }
 
-    // 2. Isbarbardhig labada password adoo isticmaalaya bcrypt
     const isPasswordMatch = await bcrypt.compare(password, user.password);
     if (!isPasswordMatch) {
-      res.status(401).json({ error: 'Iimaylka ama password-ka aad gelisay waa khalad.' });
+      res.status(401).json({ success: false, error: 'Iimaylka ama password-ka aad gelisay waa khalad.' });
       return;
     }
 
-    // 3. Dhaliso JWT Token ammaan ah (Wuxuu shaqaynayaa 24 saacadood)
     const token = jwt.sign(
       { id: user.id, role: user.role, type: 'USER' },
       JWT_SECRET,
@@ -119,19 +117,19 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
 
   } catch (error) {
     console.error("User login error:", error);
-    res.status(500).json({ error: 'Cilad baa dhacday xilliga soo galka.' });
+    res.status(500).json({ success: false, error: 'Cilad baa dhacday xilliga soo galka.' });
   }
 };
 
 /**
- * 3. DIIWAANGELINTA VENDOR (Iibiyayaasha)
+ * 3. DIIWAANGELINTA VENDOR
  */
 export const registerVendor = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, email, phone, password, shopName } = req.body;
 
-    if (!name || !email || !phone || !password) {
-      res.status(400).json({ error: 'Fadlan buuxi name, email, phone, iyo password.' });
+    if (!name || !email || !phone || !password || !shopName) {
+      res.status(400).json({ success: false, error: 'Fadlan buuxi name, email, phone, password, iyo shopName.' });
       return;
     }
 
@@ -142,7 +140,7 @@ export const registerVendor = async (req: Request, res: Response): Promise<void>
     });
 
     if (existingVendor) {
-      res.status(400).json({ error: 'Iimaylkan ama telefoonkan mar hore ayaa la isticmaalay.' });
+      res.status(400).json({ success: false, error: 'Iimaylkan ama telefoonkan mar hore ayaa la isticmaalay.' });
       return;
     }
 
@@ -154,8 +152,8 @@ export const registerVendor = async (req: Request, res: Response): Promise<void>
         email,
         phone,
         password: hashedPassword,
-        shopName: shopName || null,
-        status: 'PENDING' // Admin-ka ayaa ansixin doona hadhow
+        shopName,
+        status: 'pending'
       },
       select: {
         id: true,
@@ -176,43 +174,42 @@ export const registerVendor = async (req: Request, res: Response): Promise<void>
 
   } catch (error) {
     console.error("Vendor registration error:", error);
-    res.status(500).json({ error: 'Cilad baa ku dhacday diiwaangelinta iibiyaha.' });
+    res.status(500).json({ success: false, error: 'Cilad baa ku dhacday diiwaangelinta iibiyaha.' });
   }
 };
 
 /**
- * 4. SOO GALKA VENDOR (Login Iibiyayaasha)
+ * 4. SOO GALKA VENDOR
  */
 export const loginVendor = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      res.status(400).json({ error: 'Fadlan buuxi iimaylka iyo password-ka.' });
+      res.status(400).json({ success: false, error: 'Fadlan buuxi iimaylka iyo password-ka.' });
       return;
     }
 
     const vendor = await prisma.vendor.findUnique({ where: { email } });
     if (!vendor) {
-      res.status(401).json({ error: 'Iimaylka ama password-ka aad gelisay waa khalad.' });
+      res.status(401).json({ success: false, error: 'Iimaylka ama password-ka aad gelisay waa khalad.' });
       return;
     }
 
-    // Hubi haddii Vendor-ka la xannibay ama aan weli la ansixin
-    if (vendor.status !== 'APPROVED') {
+    if (vendor.status !== 'approved') {
       res.status(403).json({ 
-        error: `Koontadaada lama geli karo. Xaaladeedu waa: ${vendor.status}. Fadlan la xiriir Admin-ka.` 
+        success: false,
+        error: `Koontadaada lama geli karo. Xaaladeedu waa: ${vendor.status}.` 
       });
       return;
     }
 
     const isPasswordMatch = await bcrypt.compare(password, vendor.password);
     if (!isPasswordMatch) {
-      res.status(401).json({ error: 'Iimaylka ama password-ka aad gelisay waa khalad.' });
+      res.status(401).json({ success: false, error: 'Iimaylka ama password-ka aad gelisay waa khalad.' });
       return;
     }
 
-    // U dhalis Token gaar u ah Vendor-ka
     const token = jwt.sign(
       { id: vendor.id, role: 'VENDOR', type: 'VENDOR' },
       JWT_SECRET,
@@ -234,6 +231,6 @@ export const loginVendor = async (req: Request, res: Response): Promise<void> =>
 
   } catch (error) {
     console.error("Vendor login error:", error);
-    res.status(500).json({ error: 'Cilad baa dhacday xilliga soo galka.' });
+    res.status(500).json({ success: false, error: 'Cilad baa dhacday xilliga soo galka.' });
   }
 };
