@@ -47,7 +47,7 @@ export const processPayment = async (req: AuthenticatedRequest, res: Response): 
         }),
         prisma.order.update({
           where: { id: order.id },
-          data: { status: 'PAID' }
+          data: { status: 'paid' }
         })
       ]);
       res.status(200).json({ success: true, transactionId: paymentResult.transactionId });

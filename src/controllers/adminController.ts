@@ -109,7 +109,7 @@ export const getAdminStats = async (req: Request, res: Response): Promise<void> 
     // A. Xisaabi dakhliga guud ee ka dhashay dalabaadka la bixiyay (PAID)
     const totalRevenue = await prisma.order.aggregate({
       where: {
-        status: 'PAID'
+        status: 'paid'
       },
       _sum: {
         totalAmount: true
@@ -129,7 +129,7 @@ export const getAdminStats = async (req: Request, res: Response): Promise<void> 
 
     // E. Tiri dalabaadka guud (Total Orders) iyo inta la bixiyay
     const totalOrders = await prisma.order.count();
-    const paidOrders = await prisma.order.count({ where: { status: 'PAID' } });
+    const paidOrders = await prisma.order.count({ where: { status: 'paid' } });
 
     res.status(200).json({
       success: true,
