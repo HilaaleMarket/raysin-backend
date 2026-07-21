@@ -20,7 +20,7 @@ const pool = new pg.Pool({
 const adapter = new PrismaPg(pool);
 export const prisma = new PrismaClient({ adapter });
 
-// CORS Configuration laguu saxay
+// 1. Array-ga origins-ka idanka leh
 const allowedOrigins = [
   'https://hilaale.com',
   'https://www.hilaale.com',
@@ -28,19 +28,26 @@ const allowedOrigins = [
   'http://localhost:5173'
 ];
 
-app.use(cors({
+// 2. Options-ka CORS-ka oo la dhuuxay
+const corsOptions = {
   origin: (origin, callback) => {
-    // Ogolow requests-ka aan lahayn origin (sida mobile apps ama Postman)
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(null, true); // ama callback(new Error('Not allowed by CORS'))
+      callback(null, true); // Permissive for testing
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200 // Legacy browsers (IE11, some smart TVs/Mobiles)
+};
+
+// 3. Apply CORS Middleware
+app.use(cors(corsOptions));
+
+// 🟢 GUUDAHA LABADAAN LINE KU DAR (Aad u muhiim ah pre-flight requests)
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 
