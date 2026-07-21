@@ -5,11 +5,13 @@ import { AuthenticatedRequest } from '../middleware/authMiddleware.js';
 // 1. Abuur alaab cusub (Iibiyaha soo galay kaliya)
 export const createProduct = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const { title, description, price, stock, categoryName } = req.body;
+    const { name, title, description, price, stock, categoryName } = req.body;
     const vendorId = req.vendorId;
 
-    if (!title || !price || !categoryName || !vendorId) {
-      res.status(400).json({ error: 'Fadlan buuxi title, price, iyo categoryName' });
+    const productName = name || title;
+
+    if (!productName || !price || !categoryName || !vendorId) {
+      res.status(400).json({ error: 'Fadlan buuxi name/title, price, iyo categoryName' });
       return;
     }
 
@@ -22,7 +24,7 @@ export const createProduct = async (req: AuthenticatedRequest, res: Response): P
 
     const newProduct = await prisma.product.create({
       data: {
-        title,
+        name: productName,
         description: description || '',
         price: parseFloat(price),
         stock: parseInt(stock) || 0,
