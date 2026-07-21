@@ -30,7 +30,7 @@ const allowedOrigins = [
 
 // 2. Options-ka CORS-ka oo la dhuuxay
 const corsOptions = {
-  origin: (origin, callback) => {
+  origin: (origin: any, callback: any) => {
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -47,7 +47,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // 🟢 GUUDAHA LABADAAN LINE KU DAR (Aad u muhiim ah pre-flight requests)
-app.options('*', cors(corsOptions));
+app.options(/(.*)/, cors(corsOptions));
 
 app.use(express.json());
 
