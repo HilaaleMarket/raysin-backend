@@ -16,7 +16,7 @@ router.post('/orders', authenticateToken, createOrder);
 router.get('/orders/my', authenticateToken, getUserOrders);
 router.get('/orders/vendor', authenticateToken, getVendorOrders);
 
-// Lacag-bixinta (Payments)
+// Lacag-bixinta (Payments: /api/payments/charge)
 router.post('/payments/charge', authenticateToken, processPayment);
 
 // ==========================================

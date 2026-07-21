@@ -28,7 +28,7 @@ const allowedOrigins = [
   'http://localhost:5173'
 ];
 
-// 2. Options-ka CORS-ka oo la dhuuxay
+// 2. Options-ka CORS-ka
 const corsOptions = {
   origin: (origin: any, callback: any) => {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -40,21 +40,25 @@ const corsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  optionsSuccessStatus: 200 // Legacy browsers (IE11, some smart TVs/Mobiles)
+  optionsSuccessStatus: 200
 };
 
-// 3. Apply CORS Middleware
+// 3. Middleware-yada CORS-ka iyo JSON Parsing
 app.use(cors(corsOptions));
-
-// 🟢 GUUDAHA LABADAAN LINE KU DAR (Aad u muhiim ah pre-flight requests)
 app.options(/(.*)/, cors(corsOptions));
-
 app.use(express.json());
 
+// Root endpoint (Si looga baaqsado 404 marka server-ka la ping-gareeyo)
+app.get('/', (req, res) => {
+  res.status(200).send('Raysin / Hilaale API Server is LIVE 🚀');
+});
+
+// Health Check Endpoint
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Hilaale Backend is running smoothly 🚀' });
 });
 
+// Routes-ka Guud
 app.use('/api/auth', authRoutes);
 app.use('/api', apiRoutes);
 app.use('/api/orders', orderRoutes);
