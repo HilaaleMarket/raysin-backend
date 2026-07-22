@@ -8,6 +8,17 @@ const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET || 'hilaale_super_secret_key_2026';
 
 /**
+ * Helper Function oo JWT Token dhalisa
+ */
+const generateAuthToken = (id: string, role: string, type: 'USER' | 'VENDOR') => {
+  return jwt.sign(
+    { id, role, type },
+    JWT_SECRET,
+    { expiresIn: '30d' } // Redirection & session persistent dhererkeeda
+  );
+};
+
+/**
  * 1. DIIWAANGELINTA USER
  */
 export const registerUser = async (req: Request, res: Response): Promise<void> => {
@@ -60,10 +71,14 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       }
     });
 
+    // 🟢 DHALI TOKEN MARKA DIIWAANGELINTU GUULEYSATO
+    const token = generateAuthToken(newUser.id, newUser.role, 'USER');
+
     res.status(201).json({
       success: true,
       message: `${userRole} si guul leh ayaa loo diiwangeliyey.`,
-      data: newUser
+      token, // 👈 Token-ka dib laga soo celiyay
+      user: newUser
     });
 
   } catch (error: any) {
@@ -96,11 +111,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const token = jwt.sign(
-      { id: user.id, role: user.role, type: 'USER' },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    const token = generateAuthToken(user.id, user.role, 'USER');
 
     res.status(200).json({
       success: true,
@@ -166,10 +177,14 @@ export const registerVendor = async (req: Request, res: Response): Promise<void>
       }
     });
 
+    // 🟢 DHALI TOKEN (Sidoo kale kaydi)
+    const token = generateAuthToken(newVendor.id, 'VENDOR', 'VENDOR');
+
     res.status(201).json({
       success: true,
-      message: 'Iibiyaha waa la diiwaangeliyey. Wuxuu sugayaa ansixinta Admin-ka.',
-      data: newVendor
+      message: 'Iibiyaha waa la diiwaangeliyey.',
+      token, // 👈 Token-ka halkan ayaa lagu soo celiyay
+      vendor: newVendor
     });
 
   } catch (error) {
@@ -210,11 +225,7 @@ export const loginVendor = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const token = jwt.sign(
-      { id: vendor.id, role: 'VENDOR', type: 'VENDOR' },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    const token = generateAuthToken(vendor.id, 'VENDOR', 'VENDOR');
 
     res.status(200).json({
       success: true,
