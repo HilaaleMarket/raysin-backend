@@ -35,11 +35,10 @@ const corsOptions: CorsOptions = {
     origin: string | undefined, 
     callback: (err: Error | null, allow?: boolean) => void
   ) => {
-    // Ogolow Postman/Mobile Apps (No Origin) iyo dhammaan Allowed Domains
     if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
       callback(null, true);
     } else {
-      callback(null, true); // Fallback allow for public API calls
+      callback(null, true);
     }
   },
   credentials: true,
@@ -48,11 +47,10 @@ const corsOptions: CorsOptions = {
   optionsSuccessStatus: 200
 };
 
-// 1. CORS Preflight Middleware (Wuxuu xallinayaa ERR_FAILED Preflight)
+// 🟢 1. Dynamic CORS Middleware (Kani wuxuu sidoo kale qabanayaa OPTIONS Preflight)
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
 
-// 2. Body Parser
+// 🟢 2. Body Parser
 app.use(express.json());
 
 // Endpoints
