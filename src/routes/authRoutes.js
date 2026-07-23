@@ -8,11 +8,11 @@ import {
 
 const router = Router();
 
-// Waddooyinka Macmiilka iyo Admin-ka (User Routes)
+// Waddooyinka Macmiilka (User Routes) -> /api/auth/register
 router.post('/register', registerUser);
 router.post('/login', loginUser);
 
-// Waddooyinka Iibiyaha (Vendor Routes)
+// Waddooyinka Iibiyaha (Vendor Routes) -> /api/auth/vendor/register
 router.post('/vendor/register', registerVendor);
 router.post('/vendor/login', loginVendor);
 
