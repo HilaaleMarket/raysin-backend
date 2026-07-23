@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
-import cors, { CorsOptions } from 'cors';
+import { CorsOptions } from 'cors';
+import cors from 'cors';
 import dotenv from 'dotenv';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -47,7 +48,10 @@ const corsOptions: CorsOptions = {
 };
 
 // Middleware Setup (app.use(cors()) wuxuu Express 5 dhexdiisa si toos ah u qabanayaa OPTIONS Preflight)
-app.use(cors(corsOptions));
+app.use(cors({
+  origin: ['https://hilaale.com', 'http://localhost:3000'],
+  credentials: true
+}));
 app.use(express.json());
 
 // Endpoints
