@@ -26,6 +26,7 @@ export const prisma = new PrismaClient({ adapter });
 const allowedOrigins = [
   'https://hilaale.com',
   'https://www.hilaale.com',
+  'https://api.hilaale.com',
   'http://localhost:3000',
   'http://localhost:5173'
 ];
@@ -53,7 +54,7 @@ app.use(cors(corsOptions));
 // 🟢 2. Body Parser
 app.use(express.json());
 
-// Endpoints
+// Endpoints Test
 app.get('/', (req: Request, res: Response) => {
   res.status(200).send('Raysin / Hilaale API Server is LIVE 🚀');
 });
