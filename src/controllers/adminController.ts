@@ -135,7 +135,7 @@ export const getAdminStats = async (req: Request, res: Response): Promise<void> 
       success: true,
       data: {
         revenue: {
-          totalUSD: totalRevenue._sum.totalAmount || 0,
+          totalUSD: totalRevenue._sum?.totalAmount || 0,
         },
         users: {
           total: totalUsers
@@ -150,7 +150,7 @@ export const getAdminStats = async (req: Request, res: Response): Promise<void> 
         },
         orders: {
           total: totalOrders,
-          paid: paidOrders
+          paid:  paidOrders
         }
       }
     });
