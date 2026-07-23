@@ -5,10 +5,11 @@ import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 
-// Ku dar .js extensions-ka import kasta oo relative ah:
+// Relative imports leh .js extensions (NodeNext ESM requirements)
 import authRoutes from './routes/authRoutes.js';
 import apiRoutes from './routes/apiRoutes.js';
-import orderRoutes from './routes/order.routes.js'; // Haddii faylkani uu ku yaal src/routes/order.routes.ts
+import orderRoutes from './routes/order.routes.js';
+
 dotenv.config();
 
 const app = express();
@@ -22,7 +23,7 @@ const pool = new pg.Pool({
 const adapter = new PrismaPg(pool);
 export const prisma = new PrismaClient({ adapter });
 
-// 1. Array-ga origins-ka idanka leh (ku dar Network IP-gaaga haddii aad mobaylka ka tijaabinayso)
+// Array-ga origins-ka idanka leh
 const allowedOrigins = [
   'https://hilaale.com',
   'https://www.hilaale.com',
@@ -30,15 +31,16 @@ const allowedOrigins = [
   'http://localhost:5173'
 ];
 
-// 2. Options-ka CORS-ka ee la hagaajiyay
+// CORS Options oo leh TypeScript Types si uu Render/tsc uga baxo implicit 'any' error
 const corsOptions: CorsOptions = {
-  origin: (origin, callback) => {
-    // Allows requests without origin (like mobile apps, curl, or Postman) or allowed origins
+  origin: (
+    origin: string | undefined, 
+    callback: (err: Error | null, allow?: boolean) => void
+  ) => {
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      // Permissive fallback during testing
-      callback(null, true);
+      callback(null, true); // Fallback for testing/mobile
     }
   },
   credentials: true,
@@ -47,12 +49,9 @@ const corsOptions: CorsOptions = {
   optionsSuccessStatus: 200
 };
 
-// 3. Middleware-yada CORS iyo JSON Parsing
+// Middleware Setup
 app.use(cors(corsOptions));
-
-// Si toos ah uga jawaab OPTIONS (Preflight Requests) dhammaan routes-ka
 app.options('*', cors(corsOptions));
-
 app.use(express.json());
 
 // Root endpoint
@@ -65,7 +64,7 @@ app.get('/api/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'ok', message: 'Hilaale Backend is running smoothly 🚀' });
 });
 
-// Routes-ka Guud
+// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api', apiRoutes);
 app.use('/api/orders', orderRoutes);
