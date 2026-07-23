@@ -1,6 +1,5 @@
 import express, { Request, Response } from 'express';
-import { CorsOptions } from 'cors';
-import cors from 'cors';
+import cors, { CorsOptions } from 'cors';
 import dotenv from 'dotenv';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -23,6 +22,7 @@ const pool = new pg.Pool({
 const adapter = new PrismaPg(pool);
 export const prisma = new PrismaClient({ adapter });
 
+// Allowed Domains
 const allowedOrigins = [
   'https://hilaale.com',
   'https://www.hilaale.com',
@@ -35,23 +35,24 @@ const corsOptions: CorsOptions = {
     origin: string | undefined, 
     callback: (err: Error | null, allow?: boolean) => void
   ) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Ogolow Postman/Mobile Apps (No Origin) iyo dhammaan Allowed Domains
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
       callback(null, true);
     } else {
-      callback(null, true);
+      callback(null, true); // Fallback allow for public API calls
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   optionsSuccessStatus: 200
 };
 
-// Middleware Setup (app.use(cors()) wuxuu Express 5 dhexdiisa si toos ah u qabanayaa OPTIONS Preflight)
-app.use(cors({
-  origin: ['https://hilaale.com', 'http://localhost:3000'],
-  credentials: true
-}));
+// 1. CORS Preflight Middleware (Wuxuu xallinayaa ERR_FAILED Preflight)
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
+// 2. Body Parser
 app.use(express.json());
 
 // Endpoints
