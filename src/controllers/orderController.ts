@@ -48,11 +48,8 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response): Pro
         const itemTotal = product.price * item.quantity;
         totalAmount += itemTotal;
 
-        orderItemsData.push({
-          productId: product.id,
-          quantity: item.quantity,
-          price: product.price
-        });
+        // ✅ Koodhka saxda ah (Sii Type ama any[]):
+const orderItemsData: { productId: string; quantity: number; price: number }[] = [] as { productId: string; quantity: number; price: number }[];
 
         await tx.product.update({
           where: { id: product.id },

@@ -1,18 +1,20 @@
-import express from 'express';
-import cors from 'cors';
+import express, { Request, Response } from 'express';
+import cors, { CorsOptions } from 'cors';
 import dotenv from 'dotenv';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
+
+// Ku dar .js extensions-ka import kasta oo relative ah:
 import authRoutes from './routes/authRoutes.js';
 import apiRoutes from './routes/apiRoutes.js';
-import orderRoutes from './routes/order.routes.js';
-
+import orderRoutes from './routes/order.routes.js'; // Haddii faylkani uu ku yaal src/routes/order.routes.ts
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Prisma Client & PostgreSQL Adapter Setup
 const pool = new pg.Pool({ 
   connectionString: process.env.DATABASE_URL 
 });
@@ -20,7 +22,7 @@ const pool = new pg.Pool({
 const adapter = new PrismaPg(pool);
 export const prisma = new PrismaClient({ adapter });
 
-// 1. Array-ga origins-ka idanka leh
+// 1. Array-ga origins-ka idanka leh (ku dar Network IP-gaaga haddii aad mobaylka ka tijaabinayso)
 const allowedOrigins = [
   'https://hilaale.com',
   'https://www.hilaale.com',
@@ -28,13 +30,15 @@ const allowedOrigins = [
   'http://localhost:5173'
 ];
 
-// 2. Options-ka CORS-ka
-const corsOptions = {
-  origin: (origin: any, callback: any) => {
+// 2. Options-ka CORS-ka ee la hagaajiyay
+const corsOptions: CorsOptions = {
+  origin: (origin, callback) => {
+    // Allows requests without origin (like mobile apps, curl, or Postman) or allowed origins
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(null, true); // Permissive for testing
+      // Permissive fallback during testing
+      callback(null, true);
     }
   },
   credentials: true,
@@ -43,18 +47,21 @@ const corsOptions = {
   optionsSuccessStatus: 200
 };
 
-// 3. Middleware-yada CORS-ka iyo JSON Parsing
+// 3. Middleware-yada CORS iyo JSON Parsing
 app.use(cors(corsOptions));
-app.options(/(.*)/, cors(corsOptions));
+
+// Si toos ah uga jawaab OPTIONS (Preflight Requests) dhammaan routes-ka
+app.options('*', cors(corsOptions));
+
 app.use(express.json());
 
-// Root endpoint (Si looga baaqsado 404 marka server-ka la ping-gareeyo)
-app.get('/', (req, res) => {
+// Root endpoint
+app.get('/', (req: Request, res: Response) => {
   res.status(200).send('Raysin / Hilaale API Server is LIVE 🚀');
 });
 
 // Health Check Endpoint
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'ok', message: 'Hilaale Backend is running smoothly 🚀' });
 });
 
@@ -63,6 +70,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api', apiRoutes);
 app.use('/api/orders', orderRoutes);
 
+// Server Listening
 app.listen(PORT, () => {
   console.log(`⚡️ [server]: Hilaale API Server wuxuu ka kiciyay http://localhost:${PORT}`);
 });
