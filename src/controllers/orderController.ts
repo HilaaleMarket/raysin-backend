@@ -3,9 +3,11 @@ import { prisma } from '../server.js';
 import { AuthenticatedRequest } from '../middleware/authMiddleware.js';
 import { OrderStatus } from '@prisma/client';
 
-interface CartItem {
-  productId: string;
+interface CartItemInput {
+  productId?: string;
+  product?: string | { id?: string; _id?: string };
   quantity: number;
+  price?: number;
 }
 
 // 1. ABUURISTA DALABKA
@@ -26,15 +28,30 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response): Pro
 
     const result = await prisma.$transaction(async (tx) => {
       let totalAmount = 0;
-      const orderItemsData = [];
+      const orderItemsData: { productId: string; quantity: number; price: number }[] = [];
 
-      for (const item of items as CartItem[]) {
+      for (const item of items as CartItemInput[]) {
+        // Safe extraction of product ID (Handles string, object, or productId key)
+        let targetProductId: string | undefined;
+
+        if (typeof item.product === 'string') {
+          targetProductId = item.product;
+        } else if (typeof item.product === 'object' && item.product !== null) {
+          targetProductId = item.product.id || item.product._id;
+        } else if (item.productId) {
+          targetProductId = item.productId;
+        }
+
+        if (!targetProductId) {
+          throw new Error("Waxaa ku jira alaab aan lahayn ID sax ah.");
+        }
+
         const product = await tx.product.findUnique({
-          where: { id: item.productId }
+          where: { id: targetProductId }
         });
 
         if (!product) {
-          throw new Error(`Alaabtan (ID: ${item.productId}) lagama helin nidaamka.`);
+          throw new Error(`Alaabtan (ID: ${targetProductId}) lagama helin nidaamka.`);
         }
 
         if (product.vendorId !== vendorId) {
@@ -48,9 +65,14 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response): Pro
         const itemTotal = product.price * item.quantity;
         totalAmount += itemTotal;
 
-        // ✅ Koodhka saxda ah (Sii Type ama any[]):
-const orderItemsData: { productId: string; quantity: number; price: number }[] = [] as { productId: string; quantity: number; price: number }[];
+        // Push data into order items array
+        orderItemsData.push({
+          productId: product.id,
+          quantity: item.quantity,
+          price: product.price
+        });
 
+        // Update stock
         await tx.product.update({
           where: { id: product.id },
           data: {
@@ -83,6 +105,8 @@ const orderItemsData: { productId: string; quantity: number; price: number }[] =
     res.status(201).json({
       success: true,
       message: 'Dalabkaaga waa la geliyey, wuxuu sugayaa lacag-bixinta.',
+      orderId: result.id,
+      order: result,
       data: result
     });
 
