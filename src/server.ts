@@ -9,6 +9,7 @@ import authRoutes from './routes/authRoutes.js';
 import apiRoutes from './routes/apiRoutes.js';
 import orderRoutes from './routes/order.routes.js';
 
+
 dotenv.config();
 
 const app = express();
@@ -48,7 +49,7 @@ const corsOptions: CorsOptions = {
   optionsSuccessStatus: 200
 };
 
-// 🟢 1. Dynamic CORS Middleware (Kani wuxuu sidoo kale qabanayaa OPTIONS Preflight)
+// 🟢 1. Dynamic CORS Middleware
 app.use(cors(corsOptions));
 
 // 🟢 2. Body Parser
@@ -56,7 +57,7 @@ app.use(express.json());
 
 // Endpoints Test
 app.get('/', (req: Request, res: Response) => {
-  res.status(200).send('Hilaale / Hilaale API Server is LIVE 🚀');
+  res.status(200).send('Hilaale API Server is LIVE 🚀');
 });
 
 app.get('/api/health', (req: Request, res: Response) => {

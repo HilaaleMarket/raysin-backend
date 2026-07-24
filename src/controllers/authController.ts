@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../server.js';
-import { Role } from '@prisma/client';
 
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET || 'hilaale_super_secret_key_2026';
@@ -14,7 +13,7 @@ const generateAuthToken = (id: string, role: string, type: 'USER' | 'VENDOR') =>
   return jwt.sign(
     { id, role, type },
     JWT_SECRET,
-    { expiresIn: '30d' } // Redirection & session persistent dhererkeeda
+    { expiresIn: '30d' }
   );
 };
 
@@ -30,9 +29,12 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPhone = phone.trim();
+
     const existingUser = await prisma.user.findFirst({
       where: {
-        OR: [{ email }, { phone }]
+        OR: [{ email: normalizedEmail }, { phone: normalizedPhone }]
       }
     });
 
@@ -41,12 +43,13 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    let userRole: Role = Role.user;
+    // Role mapping (Upper/Lower case safe)
+    let userRole: any = 'USER';
     if (role) {
-      const lowerRole = role.toLowerCase();
-      if (lowerRole === 'admin') userRole = Role.admin;
-      if (lowerRole === 'vendor') userRole = Role.vendor;
-      if (lowerRole === 'user') userRole = Role.user;
+      const upper = role.toUpperCase();
+      if (['ADMIN', 'VENDOR', 'USER'].includes(upper)) {
+        userRole = upper;
+      }
     }
 
     const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
@@ -54,9 +57,9 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
 
     const newUser = await prisma.user.create({
       data: {
-        name,
-        email,
-        phone,
+        name: name.trim(),
+        email: normalizedEmail,
+        phone: normalizedPhone,
         password: hashedPassword,
         role: userRole,
         referralCode: generatedReferralCode
@@ -71,19 +74,18 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       }
     });
 
-    // 🟢 DHALI TOKEN MARKA DIIWAANGELINTU GUULEYSATO
-    const token = generateAuthToken(newUser.id, newUser.role, 'USER');
+    const token = generateAuthToken(newUser.id, newUser.role as string, 'USER');
 
     res.status(201).json({
       success: true,
       message: `${userRole} si guul leh ayaa loo diiwangeliyey.`,
-      token, // 👈 Token-ka dib laga soo celiyay
+      token,
       user: newUser
     });
 
   } catch (error: any) {
     console.error("User registration error:", error);
-    res.status(500).json({ success: false, error: 'Cilad baa dhacday marka la diiwaangelinayey isticmaalaha.' });
+    res.status(500).json({ success: false, error: error.message || 'Cilad baa dhacday marka la diiwaangelinayey isticmaalaha.' });
   }
 };
 
@@ -99,7 +101,9 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (!user) {
       res.status(401).json({ success: false, error: 'Iimaylka ama password-ka aad gelisay waa khalad.' });
       return;
@@ -111,7 +115,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const token = generateAuthToken(user.id, user.role, 'USER');
+    const token = generateAuthToken(user.id, user.role as string, 'USER');
 
     res.status(200).json({
       success: true,
@@ -126,7 +130,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("User login error:", error);
     res.status(500).json({ success: false, error: 'Cilad baa dhacday xilliga soo galka.' });
   }
@@ -144,9 +148,12 @@ export const registerVendor = async (req: Request, res: Response): Promise<void>
       return;
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPhone = phone.trim();
+
     const existingVendor = await prisma.vendor.findFirst({
       where: {
-        OR: [{ email }, { phone }]
+        OR: [{ email: normalizedEmail }, { phone: normalizedPhone }]
       }
     });
 
@@ -159,11 +166,11 @@ export const registerVendor = async (req: Request, res: Response): Promise<void>
 
     const newVendor = await prisma.vendor.create({
       data: {
-        name,
-        email,
-        phone,
+        name: name.trim(),
+        email: normalizedEmail,
+        phone: normalizedPhone,
         password: hashedPassword,
-        shopName,
+        shopName: shopName.trim(),
         status: 'pending'
       },
       select: {
@@ -177,19 +184,18 @@ export const registerVendor = async (req: Request, res: Response): Promise<void>
       }
     });
 
-    // 🟢 DHALI TOKEN (Sidoo kale kaydi)
     const token = generateAuthToken(newVendor.id, 'VENDOR', 'VENDOR');
 
     res.status(201).json({
       success: true,
       message: 'Iibiyaha waa la diiwaangeliyey.',
-      token, // 👈 Token-ka halkan ayaa lagu soo celiyay
+      token,
       vendor: newVendor
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Vendor registration error:", error);
-    res.status(500).json({ success: false, error: 'Cilad baa ku dhacday diiwaangelinta iibiyaha.' });
+    res.status(500).json({ success: false, error: error.message || 'Cilad baa ku dhacday diiwaangelinta iibiyaha.' });
   }
 };
 
@@ -205,13 +211,15 @@ export const loginVendor = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const vendor = await prisma.vendor.findUnique({ where: { email } });
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const vendor = await prisma.vendor.findUnique({ where: { email: normalizedEmail } });
     if (!vendor) {
       res.status(401).json({ success: false, error: 'Iimaylka ama password-ka aad gelisay waa khalad.' });
       return;
     }
 
-    if (vendor.status !== 'approved') {
+    if (vendor.status !== 'approved' && vendor.status !== 'pending') {
       res.status(403).json({ 
         success: false,
         error: `Koontadaada lama geli karo. Xaaladeedu waa: ${vendor.status}.` 
@@ -240,7 +248,7 @@ export const loginVendor = async (req: Request, res: Response): Promise<void> =>
       }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Vendor login error:", error);
     res.status(500).json({ success: false, error: 'Cilad baa dhacday xilliga soo galka.' });
   }
