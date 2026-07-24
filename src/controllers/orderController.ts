@@ -16,6 +16,8 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response): Pro
     const userId = req.userId;
     const { vendorId, shippingAddress, items } = req.body;
 
+    console.log("📥 [DEBUG] Incoming Request Body:", JSON.stringify(req.body, null, 2));
+
     if (!userId) {
       res.status(401).json({ error: 'Fadlan marka hore iska diiwaangeli nidaamka.' });
       return;
@@ -31,7 +33,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response): Pro
       const orderItemsData: { productId: string; quantity: number; price: number }[] = [];
 
       for (const item of items as CartItemInput[]) {
-        // Safe extraction of product ID (Handles string, object, or productId key)
+        // Safe extraction of product ID
         let targetProductId: string | undefined;
 
         if (typeof item.product === 'string') {
@@ -42,6 +44,9 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response): Pro
           targetProductId = item.productId;
         }
 
+        // 🔍 DEBUG LOG: Arag ID-ga la baaray
+        console.log("🔍 [DEBUG] Extracted Product ID:", targetProductId);
+
         if (!targetProductId) {
           throw new Error("Waxaa ku jira alaab aan lahayn ID sax ah.");
         }
@@ -50,11 +55,15 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response): Pro
           where: { id: targetProductId }
         });
 
+        // 🔍 DEBUG LOG: Arag in alaabta la helay iyo in kale
+        console.log("📦 [DEBUG] DB Query Result for ID:", targetProductId, "=> Found:", !!product);
+
         if (!product) {
           throw new Error(`Alaabtan (ID: ${targetProductId}) lagama helin nidaamka.`);
         }
 
         if (product.vendorId !== vendorId) {
+          console.log(`⚠️ [DEBUG] Vendor Mismatch! DB Vendor: ${product.vendorId}, Request Vendor: ${vendorId}`);
           throw new Error(`Alaabta "${product.name}" kama tirsana dukaan-kan.`);
         }
 
@@ -65,14 +74,12 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response): Pro
         const itemTotal = product.price * item.quantity;
         totalAmount += itemTotal;
 
-        // Push data into order items array
         orderItemsData.push({
           productId: product.id,
           quantity: item.quantity,
           price: product.price
         });
 
-        // Update stock
         await tx.product.update({
           where: { id: product.id },
           data: {
@@ -111,7 +118,7 @@ export const createOrder = async (req: AuthenticatedRequest, res: Response): Pro
     });
 
   } catch (error: any) {
-    console.error("Create Order Error:", error.message);
+    console.error("❌ [DEBUG] Create Order Error:", error.message);
     res.status(400).json({ error: error.message || 'Cilad baa ku dhacday abuurista dalabka.' });
   }
 };
