@@ -56,7 +56,7 @@ app.use(express.json());
 
 // Endpoints Test
 app.get('/', (req: Request, res: Response) => {
-  res.status(200).send('Raysin / Hilaale API Server is LIVE 🚀');
+  res.status(200).send('Hilaale / Hilaale API Server is LIVE 🚀');
 });
 
 app.get('/api/health', (req: Request, res: Response) => {
