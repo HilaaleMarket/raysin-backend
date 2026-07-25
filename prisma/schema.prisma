@@ -1,11 +1,14 @@
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
 }
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../node_modules/.prisma/client"
 }
+
+// ==========================================
+// 1. ENUMS
+// ==========================================
 
 enum Role {
   admin
@@ -29,27 +32,41 @@ enum VendorTier {
   ALPHA
 }
 
-enum TransactionType {
-  PURCHASE
-  COMMISSION
-  WITHDRAWAL
-}
-
-enum TransactionStatus {
+enum PaymentStatus {
   PENDING
   COMPLETED
   FAILED
+  REFUNDED
 }
 
-// 1. Macmiilka Wax Iibsanaya (User) & Admin-ka
+enum PaymentProvider {
+  ZAAD
+  EVC
+  SAHAL
+  EDAHAB
+  KAASHPAY
+}
+
+enum ScheduleStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// ==========================================
+// 2. USER & VENDOR
+// ==========================================
+
 model User {
   id           String   @id @default(uuid())
   name         String
   email        String   @unique
-  phone        String   @unique
+  phone        String?  @unique
   password     String
   role         Role     @default(user)
-  referralCode String   @unique
+  city         String?
+  referralCode String?  @unique
   referredById String?
   referredBy   User?    @relation("UserReferrals", fields: [referredById], references: [id])
   referrals    User[]   @relation("UserReferrals")
@@ -60,67 +77,70 @@ model User {
   orders       Order[]
 }
 
-// 2. Iibiyaha Dukaanka Leh (Vendor)
 model Vendor {
-  id             String     @id @default(uuid())
+  id             String        @id @default(uuid())
   name           String
-  email          String     @unique
+  email          String        @unique
   password       String
-  phone          String     @unique
+  phone          String        @unique
   shopName       String?
-  status         String     @default("pending")
-  balance        Float      @default(0.0)
-  totalSales     Float      @default(0.0)
-  tier           VendorTier @default(STANDARD)
-  commissionRate Float      @default(0.10)
-  rating         Float      @default(5.0)
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  status         String        @default("pending")
+  balance        Float         @default(0.0)
+  totalSales     Float         @default(0.0)
+  tier           VendorTier    @default(STANDARD)
+  commissionRate Float         @default(0.10)
+  rating         Float         @default(5.0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
   products       Product[]
   orders         Order[]
+  transactions   Transaction[]
 }
 
-// 3. Qaybaha Alaabta (Category)
+// ==========================================
+// 3. E-COMMERCE PRODUCTS & ORDERS
+// ==========================================
+
 model Category {
   id       String    @id @default(uuid())
   name     String    @unique
   products Product[]
 }
 
-// 4. Alaabta (Product)
 model Product {
   id          String      @id @default(uuid())
   name        String
-  description String
+  description String?
   price       Float
   image       String?
   stock       Int         @default(0)
   vendorId    String
   vendor      Vendor      @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  categoryId  String
-  category    Category    @relation(fields: [categoryId], references: [id])
+  categoryId  String?
+  category    Category?   @relation(fields: [categoryId], references: [id])
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   orderItems  OrderItem[]
+
+  @@index([vendorId])
 }
 
-// 5. Dalabaadka (Order)
 model Order {
-  id              String      @id @default(uuid())
-  userId          String
-  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  vendorId        String
-  vendor          Vendor      @relation(fields: [vendorId], references: [id], onDelete: Cascade)
-  shippingAddress String
+  id              String        @id @default(uuid())
+  userId          String?
+  user            User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vendorId        String?
+  vendor          Vendor?       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  shippingAddress String?
   totalAmount     Float
-  status          OrderStatus @default(pending)
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  status          OrderStatus   @default(pending)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
   items           OrderItem[]
   payments        Payment[]
+  transactions    Transaction[]
 }
 
-// 6. Waxyaabaha dalabka ku jira (OrderItem)
 model OrderItem {
   id        String  @id @default(uuid())
   orderId   String
@@ -131,7 +151,6 @@ model OrderItem {
   price     Float
 }
 
-// 7. Diiwaanka Lacag-bixinta (Payment)
 model Payment {
   id            String   @id @default(uuid())
   orderId       String
@@ -145,7 +164,24 @@ model Payment {
   updatedAt     DateTime @updatedAt
 }
 
-// 8. Boorsada Macmiilka (User Wallet)
+model Transaction {
+  id           String          @id @default(uuid())
+  orderId      String?
+  order        Order?          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  vendorId     String?
+  vendor       Vendor?         @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  amount       Float
+  phoneNumber  String?
+  provider     PaymentProvider?
+  status       PaymentStatus   @default(PENDING)
+  referenceId  String?         @unique
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([orderId])
+  @@index([vendorId])
+}
+
 model Wallet {
   id        String   @id @default(uuid())
   userId    String   @unique
@@ -155,9 +191,53 @@ model Wallet {
   updatedAt DateTime @updatedAt
 }
 
-// 9. Boorsada Dhexe ee Shirkadda (Company Wallet)
 model CompanyWallet {
   id            String   @id @default("HILAALE_GLOBAL_WALLET")
   totalEarnings Float    @default(0.0)
   updatedAt     DateTime @updatedAt
+}
+
+// ==========================================
+// 4. OPERATIONS & TRACKING (Construction/Labour)
+// ==========================================
+
+model LabourLog {
+  id           String   @id @default(uuid())
+  employeeName String
+  role         String?
+  hoursWorked  Float
+  hourlyRate   Float
+  totalCost    Float
+  date         DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([date])
+}
+
+model MaterialLog {
+  id           String   @id @default(uuid())
+  materialName String
+  quantity     Float
+  unitPrice    Float
+  totalCost    Float
+  vendorName   String?
+  date         DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([date])
+}
+
+model DailySchedule {
+  id              String         @id @default(uuid())
+  taskName        String
+  assignedTo      String?
+  estimatedBudget Float          @default(0.0)
+  scheduledDate   DateTime
+  status          ScheduleStatus @default(PENDING)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([scheduledDate])
 }
