@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../server.js';
 import { OrderStatus } from '@prisma/client';
 
+// 1. SAMAYNTA DALAB
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
   try {
     const { userId, vendorId, items, totalAmount } = req.body;
@@ -24,9 +25,9 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
+// 2. HELIDA DALAB ID AAN PENDING AHAYN
 export const getOrderById = async (req: Request, res: Response): Promise<void> => {
   try {
-    // Cast req.params.id to string to satisfy Prisma OrderWhereUniqueInput
     const id = req.params.id as string;
 
     if (!id) {
@@ -54,7 +55,47 @@ export const getOrderById = async (req: Request, res: Response): Promise<void> =
   }
 };
 
-// ANSIDINTA DALABKA IYO KALA JARANSEYNTA DAKHLIGA
+// 3. HELIDA DALABYADA USER-KA (getUserOrders)
+export const getUserOrders = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.params.userId as string;
+
+    const orders = await prisma.order.findMany({
+      where: { userId },
+      include: {
+        vendor: true,
+        items: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.status(200).json({ success: true, data: orders });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || 'Cilad baa ka dhacday helida dalabyada user-ka' });
+  }
+};
+
+// 4. HELIDA DALABYADA VENDOR-KA (getVendorOrders)
+export const getVendorOrders = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const vendorId = req.params.vendorId as string;
+
+    const orders = await prisma.order.findMany({
+      where: { vendorId },
+      include: {
+        user: true,
+        items: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.status(200).json({ success: true, data: orders });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || 'Cilad baa ka dhacday helida dalabyada vendor-ka' });
+  }
+};
+
+// 5. ANSIDINTA DALABKA IYO KALA JARANSEYNTA DAKHLIGA
 export const approveDirectVendorPayment = async (req: Request, res: Response) => {
   const orderId = req.params.orderId as string;
 
