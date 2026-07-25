@@ -1,195 +1,60 @@
 import { Request, Response } from 'express';
 import { prisma } from '../server.js';
-import { AuthenticatedRequest } from '../middleware/authMiddleware.js';
 import { OrderStatus } from '@prisma/client';
 
-interface CartItemInput {
-  productId?: string;
-  product?: string | { id?: string; _id?: string };
-  quantity: number;
-  price?: number;
-}
-
-// 1. ABUURISTA DALABKA
-export const createOrder = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const createOrder = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.userId;
-    const { vendorId, shippingAddress, items } = req.body;
+    const { userId, vendorId, items, totalAmount } = req.body;
 
-    console.log("📥 [DEBUG] Incoming Request Body:", JSON.stringify(req.body, null, 2));
-
-    if (!userId) {
-      res.status(401).json({ error: 'Fadlan marka hore iska diiwaangeli nidaamka.' });
-      return;
-    }
-
-    if (!vendorId || !shippingAddress || !items || !Array.isArray(items) || items.length === 0) {
-      res.status(400).json({ error: 'Fadlan soo dhiib vendorId, shippingAddress, iyo alaabta aad dalbanayso.' });
-      return;
-    }
-
-    const result = await prisma.$transaction(async (tx) => {
-      let totalAmount = 0;
-      const orderItemsData: { productId: string; quantity: number; price: number }[] = [];
-
-      for (const item of items as CartItemInput[]) {
-        // Safe extraction of product ID
-        let targetProductId: string | undefined;
-
-        if (typeof item.product === 'string') {
-          targetProductId = item.product;
-        } else if (typeof item.product === 'object' && item.product !== null) {
-          targetProductId = item.product.id || item.product._id;
-        } else if (item.productId) {
-          targetProductId = item.productId;
+    const newOrder = await prisma.order.create({
+      data: {
+        userId,
+        vendorId,
+        totalAmount,
+        status: OrderStatus.pending,
+        items: {
+          create: items
         }
-
-        // 🔍 DEBUG LOG: Arag ID-ga la baaray
-        console.log("🔍 [DEBUG] Extracted Product ID:", targetProductId);
-
-        if (!targetProductId) {
-          throw new Error("Waxaa ku jira alaab aan lahayn ID sax ah.");
-        }
-
-        const product = await tx.product.findUnique({
-          where: { id: targetProductId }
-        });
-
-        // 🔍 DEBUG LOG: Arag in alaabta la helay iyo in kale
-        console.log("📦 [DEBUG] DB Query Result for ID:", targetProductId, "=> Found:", !!product);
-
-        if (!product) {
-          throw new Error(`Alaabtan (ID: ${targetProductId}) lagama helin nidaamka.`);
-        }
-
-        if (product.vendorId !== vendorId) {
-          console.log(`⚠️ [DEBUG] Vendor Mismatch! DB Vendor: ${product.vendorId}, Request Vendor: ${vendorId}`);
-          throw new Error(`Alaabta "${product.name}" kama tirsana dukaan-kan.`);
-        }
-
-        if (product.stock < item.quantity) {
-          throw new Error(`Alaabta "${product.name}" stock-keedu kuuma filna. Waxaa haray oo kaliya ${product.stock}.`);
-        }
-
-        const itemTotal = product.price * item.quantity;
-        totalAmount += itemTotal;
-
-        orderItemsData.push({
-          productId: product.id,
-          quantity: item.quantity,
-          price: product.price
-        });
-
-        await tx.product.update({
-          where: { id: product.id },
-          data: {
-            stock: {
-              decrement: item.quantity
-            }
-          }
-        });
       }
-
-      const newOrder = await tx.order.create({
-        data: {
-          userId,
-          vendorId,
-          shippingAddress,
-          totalAmount,
-          status: OrderStatus.pending,
-          items: {
-            create: orderItemsData
-          }
-        },
-        include: {
-          items: true
-        }
-      });
-
-      return newOrder;
     });
 
-    res.status(201).json({
-      success: true,
-      message: 'Dalabkaaga waa la geliyey, wuxuu sugayaa lacag-bixinta.',
-      orderId: result.id,
-      order: result,
-      data: result
-    });
-
+    res.status(201).json({ success: true, data: newOrder });
   } catch (error: any) {
-    console.error("❌ [DEBUG] Create Order Error:", error.message);
-    res.status(400).json({ error: error.message || 'Cilad baa ku dhacday abuurista dalabka.' });
+    res.status(500).json({ success: false, error: error.message || 'Cilad baa ka dhacday samaynta dalabka' });
   }
 };
 
-// 2. SOO SAARISTA DALABAADKA MACMIILKA
-export const getUserOrders = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+export const getOrderById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = req.userId;
+    // Cast req.params.id to string to satisfy Prisma OrderWhereUniqueInput
+    const id = req.params.id as string;
 
-    const orders = await prisma.order.findMany({
-      where: { userId },
+    if (!id) {
+      res.status(400).json({ success: false, error: 'ID-ga dalabka waa halkan lagu darayaa' });
+      return;
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id },
       include: {
-        items: {
-          include: {
-            product: {
-              select: { name: true, image: true }
-            }
-          }
-        },
-        vendor: {
-          select: { shopName: true }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
+        vendor: true,
+        user: true,
+        items: true
+      }
     });
 
-    res.status(200).json({
-      success: true,
-      count: orders.length,
-      data: orders
-    });
-  } catch (error) {
-    console.error("Get User Orders Error:", error);
-    res.status(500).json({ error: 'Cilad baa ku dhacday soo saarista dalabaadkaaga.' });
+    if (!order) {
+      res.status(404).json({ success: false, error: 'Dalabka lama helin' });
+      return;
+    }
+
+    res.status(200).json({ success: true, data: order });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message || 'Cilad baa ka dhacday raadinta dalabka' });
   }
 };
 
-// 3. SOO SAARISTA DALABAADKA IIBIYAHA
-export const getVendorOrders = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  try {
-    const vendorId = req.vendorId;
-
-    const orders = await prisma.order.findMany({
-      where: { vendorId },
-      include: {
-        items: {
-          include: {
-            product: {
-              select: { name: true }
-            }
-          }
-        },
-        user: {
-          select: { name: true, phone: true }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    res.status(200).json({
-      success: true,
-      count: orders.length,
-      data: orders
-    });
-  } catch (error) {
-    console.error("Get Vendor Orders Error:", error);
-    res.status(500).json({ error: 'Cilad baa ku dhacday soo saarista dalabaadka iibiyaha.' });
-  }
-};
-
-// 4. ANSIDINTA DALABKA IYO KALA JARANSEYNTA DAKHLIGA
+// ANSIDINTA DALABKA IYO KALA JARANSEYNTA DAKHLIGA
 export const approveDirectVendorPayment = async (req: Request, res: Response) => {
   const orderId = req.params.orderId as string;
 
@@ -203,11 +68,15 @@ export const approveDirectVendorPayment = async (req: Request, res: Response) =>
       return res.status(404).json({ success: false, error: 'Dalabka lama helin' });
     }
 
+    if (!order.vendor || !order.vendorId) {
+      return res.status(400).json({ success: false, error: 'Vendor-ka dalabkan kama tirsana nidaamka' });
+    }
+
     if (order.status === OrderStatus.approved) {
       return res.status(400).json({ success: false, error: 'Dalabkan mar hore ayaa la ansixiyey' });
     }
 
-    const commissionRate = order.vendor.commissionRate || 0.02;
+    const commissionRate = order.vendor.commissionRate ?? 0.02;
     const totalOrderAmount = order.totalAmount;
     const hilaaleCommission = totalOrderAmount * commissionRate;
 

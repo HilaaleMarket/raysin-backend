@@ -23,6 +23,12 @@ export const processWalletTransfer = async (req: Request, res: Response): Promis
       return;
     }
 
+    // Guard Check: Xaqiiji in userId iyo vendorId ay jiraan si TS uu u ogaado inay yihiin string
+    if (!order.userId || !order.vendorId) {
+      res.status(400).json({ success: false, error: 'Dalabkan ma laha User ID ama Vendor ID sax ah' });
+      return;
+    }
+
     await prisma.$transaction([
       prisma.wallet.update({
         where: { userId: order.userId },
@@ -59,7 +65,6 @@ export const getWalletBalance = async (req: Request, res: Response): Promise<voi
   }
 };
 
-// Functions-ka ee uu wallet.routes.ts raadinayay:
 export const approveTransaction = async (req: Request, res: Response): Promise<void> => {
   try {
     const { transactionId } = req.body;
