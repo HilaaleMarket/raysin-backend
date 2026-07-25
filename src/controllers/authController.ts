@@ -89,52 +89,85 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
 };
 
 /**
- * 2. SOO GALKA USER (Aqbalsan Email AMA Phone)
+ * 2. SOO GALKA USER (Aqbalsan Email, Phone, ama Vendor Fallback)
  */
 export const loginUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, password } = req.body; // 'email' wuxuu ka dhigan yahay Identifier (Email/Phone)
+    const rawInput = req.body.email || req.body.identifier || req.body.phone;
+    const password = req.body.password;
 
-    if (!email || !password) {
+    if (!rawInput || !password) {
       res.status(400).json({ success: false, error: 'Fadlan buuxi iimaylka/telefoonka iyo password-ka.' });
       return;
     }
 
-    const identifier = email.trim().toLowerCase();
+    const cleanInput = rawInput.trim();
+    const lowerInput = cleanInput.toLowerCase();
 
-    // Ku raadi Email ama Phone
-    const user = await prisma.user.findFirst({
+    console.log("🔍 [LOGIN ATTEMPT]: Searching for:", cleanInput);
+
+    // A. Marka hore ku raadi USER Table-ka (Email ama Phone)
+    let account = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: identifier },
-          { phone: identifier }
+          { email: lowerInput },
+          { phone: cleanInput }
         ]
       }
     });
 
-    if (!user) {
+    let accountType: 'USER' | 'VENDOR' = 'USER';
+
+    // B. Haddii laga waayo User Table-ka, ku raadi VENDOR Table-ka
+    if (!account) {
+      const vendorAccount = await prisma.vendor.findFirst({
+        where: {
+          OR: [
+            { email: lowerInput },
+            { phone: cleanInput }
+          ]
+        }
+      });
+
+      if (vendorAccount) {
+        account = vendorAccount as any;
+        accountType = 'VENDOR';
+      }
+    }
+
+    // C. Haddii labada Table-ba laga waayo xogtaas
+    if (!account) {
+      console.log("❌ [LOGIN ERROR]: User/Vendor not found in Supabase DB for:", cleanInput);
       res.status(401).json({ success: false, error: 'Iimaylka/telefoonka ama password-ka aad gelisay waa khalad.' });
       return;
     }
 
-    const isPasswordMatch = await bcrypt.compare(password, user.password);
+    console.log(`✅ [LOGIN MATCH]: Found account in ${accountType} table. ID: ${account.id}`);
+
+    // D. Hubi Password-ka
+    const isPasswordMatch = await bcrypt.compare(password, account.password);
+    
     if (!isPasswordMatch) {
+      console.log("❌ [LOGIN ERROR]: Bcrypt Password Mismatch for:", cleanInput);
       res.status(401).json({ success: false, error: 'Iimaylka/telefoonka ama password-ka aad gelisay waa khalad.' });
       return;
     }
 
-    const token = generateAuthToken(user.id, user.role as string, 'USER');
+    console.log("🔑 [LOGIN SUCCESS]: Password matched successfully!");
+
+    const userRole = (account as any).role || (accountType === 'VENDOR' ? 'VENDOR' : 'USER');
+    const token = generateAuthToken(account.id, userRole, accountType);
 
     res.status(200).json({
       success: true,
       message: 'Si guul leh ayaad u soo gashay.',
       token,
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role
+        id: account.id,
+        name: account.name,
+        email: account.email,
+        phone: account.phone,
+        role: userRole
       }
     });
 
@@ -212,21 +245,23 @@ export const registerVendor = async (req: Request, res: Response): Promise<void>
  */
 export const loginVendor = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, password } = req.body;
+    const rawInput = req.body.email || req.body.identifier || req.body.phone;
+    const password = req.body.password;
 
-    if (!email || !password) {
+    if (!rawInput || !password) {
       res.status(400).json({ success: false, error: 'Fadlan buuxi iimaylka/telefoonka iyo password-ka.' });
       return;
     }
 
-    const identifier = email.trim().toLowerCase();
+    const cleanInput = rawInput.trim();
+    const lowerInput = cleanInput.toLowerCase();
 
     // Ku raadi Email ama Phone
     const vendor = await prisma.vendor.findFirst({
       where: {
         OR: [
-          { email: identifier },
-          { phone: identifier }
+          { email: lowerInput },
+          { phone: cleanInput }
         ]
       }
     });
