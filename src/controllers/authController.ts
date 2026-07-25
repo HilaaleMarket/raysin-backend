@@ -43,7 +43,6 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Role mapping (Upper/Lower case safe)
     let userRole: any = 'USER';
     if (role) {
       const upper = role.toUpperCase();
@@ -90,28 +89,37 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
 };
 
 /**
- * 2. SOO GALKA USER
+ * 2. SOO GALKA USER (Aqbalsan Email AMA Phone)
  */
 export const loginUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, password } = req.body;
+    const { email, password } = req.body; // 'email' wuxuu ka dhigan yahay Identifier (Email/Phone)
 
     if (!email || !password) {
-      res.status(400).json({ success: false, error: 'Fadlan buuxi iimaylka iyo password-ka.' });
+      res.status(400).json({ success: false, error: 'Fadlan buuxi iimaylka/telefoonka iyo password-ka.' });
       return;
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const identifier = email.trim().toLowerCase();
 
-    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    // Ku raadi Email ama Phone
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: identifier },
+          { phone: identifier }
+        ]
+      }
+    });
+
     if (!user) {
-      res.status(401).json({ success: false, error: 'Iimaylka ama password-ka aad gelisay waa khalad.' });
+      res.status(401).json({ success: false, error: 'Iimaylka/telefoonka ama password-ka aad gelisay waa khalad.' });
       return;
     }
 
     const isPasswordMatch = await bcrypt.compare(password, user.password);
     if (!isPasswordMatch) {
-      res.status(401).json({ success: false, error: 'Iimaylka ama password-ka aad gelisay waa khalad.' });
+      res.status(401).json({ success: false, error: 'Iimaylka/telefoonka ama password-ka aad gelisay waa khalad.' });
       return;
     }
 
@@ -200,22 +208,31 @@ export const registerVendor = async (req: Request, res: Response): Promise<void>
 };
 
 /**
- * 4. SOO GALKA VENDOR
+ * 4. SOO GALKA VENDOR (Aqbalsan Email AMA Phone)
  */
 export const loginVendor = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      res.status(400).json({ success: false, error: 'Fadlan buuxi iimaylka iyo password-ka.' });
+      res.status(400).json({ success: false, error: 'Fadlan buuxi iimaylka/telefoonka iyo password-ka.' });
       return;
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const identifier = email.trim().toLowerCase();
 
-    const vendor = await prisma.vendor.findUnique({ where: { email: normalizedEmail } });
+    // Ku raadi Email ama Phone
+    const vendor = await prisma.vendor.findFirst({
+      where: {
+        OR: [
+          { email: identifier },
+          { phone: identifier }
+        ]
+      }
+    });
+
     if (!vendor) {
-      res.status(401).json({ success: false, error: 'Iimaylka ama password-ka aad gelisay waa khalad.' });
+      res.status(401).json({ success: false, error: 'Iimaylka/telefoonka ama password-ka aad gelisay waa khalad.' });
       return;
     }
 
@@ -229,7 +246,7 @@ export const loginVendor = async (req: Request, res: Response): Promise<void> =>
 
     const isPasswordMatch = await bcrypt.compare(password, vendor.password);
     if (!isPasswordMatch) {
-      res.status(401).json({ success: false, error: 'Iimaylka ama password-ka aad gelisay waa khalad.' });
+      res.status(401).json({ success: false, error: 'Iimaylka/telefoonka ama password-ka aad gelisay waa khalad.' });
       return;
     }
 
@@ -243,6 +260,7 @@ export const loginVendor = async (req: Request, res: Response): Promise<void> =>
         id: vendor.id,
         name: vendor.name,
         email: vendor.email,
+        phone: vendor.phone,
         shopName: vendor.shopName,
         status: vendor.status
       }
