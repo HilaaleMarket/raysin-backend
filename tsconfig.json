@@ -6,6 +6,7 @@
     "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
     "outDir": "./dist",
+    "rootDir": "./src",
     "strict": true,
     "noImplicitAny": false,
     "allowJs": true,
@@ -14,8 +15,11 @@
     "forceConsistentCasingInFileNames": true
   },
   "include": [
-    "src/**/*",
-    "prisma/**/*",
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "prisma",
     "prisma.config.ts"
   ]
 }
