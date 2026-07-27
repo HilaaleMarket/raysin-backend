@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../server.js';
 import { supabase } from '../config/supabaseClient.js';
 
-export const createProductWithImage = async (req: Request, res: Response): Promise<void> => {
+export const createProduct = async (req: Request, res: Response): Promise<void> => {
   try {
     let payload = req.body;
 
