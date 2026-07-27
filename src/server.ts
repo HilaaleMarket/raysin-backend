@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
+import adminRoutes from './routes/admin.routes.js';
 
 import authRoutes from './routes/authRoutes.js';
 import apiRoutes from './routes/apiRoutes.js';
@@ -54,6 +55,8 @@ app.use(cors(corsOptions));
 
 // 🟢 2. Body Parser
 app.use(express.json());
+
+app.use('/api/admin', adminRoutes);
 
 // Endpoints Test
 app.get('/', (req: Request, res: Response) => {
