@@ -2,11 +2,11 @@ import { Request, Response } from 'express';
 import { prisma } from '../server.js';
 import { supabase } from '../config/supabaseClient.js';
 
+// 1. ABUURISTA ALAABTA (CREATE PRODUCT)
 export const createProduct = async (req: Request, res: Response): Promise<void> => {
   try {
     let payload = req.body;
 
-    // Haddii xogta lagu soo dhiibay FormData 'data' key-ga
     if (req.body.data && typeof req.body.data === 'string') {
       try {
         payload = JSON.parse(req.body.data);
@@ -16,9 +16,8 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
     }
 
     const { name, title, price, description, vendorId, category, stock, sku, tags } = payload;
-    const file = req.file; // Sawirka laga soo upload-gareeyay Gallery/Camera-ga
+    const file = req.file;
 
-    // Adeegso 'name' ama 'title' (Standardization)
     const productName = name || title;
 
     if (!productName || !price) {
@@ -28,12 +27,11 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
 
     let imageUrl = payload.image || '';
 
-    // 1. Haddii sawir file ah uu soo gaadhay, u dhiib Supabase Bucket
     if (file) {
       const fileExt = file.originalname.split('.').pop();
       const fileName = `products/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('product-images')
         .upload(fileName, file.buffer, {
           contentType: file.mimetype,
@@ -46,7 +44,6 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
         return;
       }
 
-      // 2. Soo saar Public URL-ka sawirka
       const { data: urlData } = supabase.storage
         .from('product-images')
         .getPublicUrl(fileName);
@@ -54,7 +51,6 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       imageUrl = urlData.publicUrl;
     }
 
-    // 3. Alaabta ku kaydi Prisma Database-ka
     const newProduct = await prisma.product.create({
       data: {
         name: productName,
@@ -77,5 +73,153 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
   } catch (error: any) {
     console.error("Create Product Error:", error);
     res.status(500).json({ error: 'Cilad baa ka dhacday abuurista alaabta.' });
+  }
+};
+
+// 2. SOO SAARISTA ALAABTA GANACSADU LEEYAHAY (GET MY PRODUCTS)
+export const getMyProducts = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const vendorId = (req as any).user?.id || (req.query.vendorId as string);
+
+    if (!vendorId) {
+      res.status(400).json({ error: "Vendor ID is required" });
+      return;
+    }
+
+    const products = await prisma.product.findMany({
+      where: { vendorId: String(vendorId) },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: products,
+    });
+  } catch (error: any) {
+    console.error("Get My Products Error:", error);
+    res.status(500).json({ error: "Cilad ayaa ka dhacday soo saarista alaabtaada." });
+  }
+};
+
+// 3. SOO SAARISTA DHAMMAAN ALAABTA (GET ALL PRODUCTS)
+export const getProducts = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const products = await prisma.product.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.status(200).json({
+      success: true,
+      data: products,
+    });
+  } catch (error: any) {
+    console.error("Get Products Error:", error);
+    res.status(500).json({ error: "Cilad ayaa ka dhacday soo saarista alaabooyinka." });
+  }
+};
+
+// 4. SOO SAARISTA ALAAB GAAR AH (GET PRODUCT BY ID)
+export const getProductById = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const productId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+    });
+
+    if (!product) {
+      res.status(404).json({ error: "Alaabta la doonayo ma jirto." });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      data: product,
+    });
+  } catch (error: any) {
+    console.error("Get Product By ID Error:", error);
+    res.status(500).json({ error: "Cilad ayaa ka dhacday soo saarista alaabta." });
+  }
+};
+
+// 5. CUSBOONAYSIINTA ALAABTA (UPDATE PRODUCT)
+export const updateProduct = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const productId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    let payload = req.body;
+
+    if (req.body.data && typeof req.body.data === 'string') {
+      try {
+        payload = JSON.parse(req.body.data);
+      } catch (e) {
+        console.error("JSON parse error on update", e);
+      }
+    }
+
+    const { name, title, price, description, category, stock, sku, tags } = payload;
+    const file = req.file;
+
+    let imageUrl = payload.image;
+
+    if (file) {
+      const fileExt = file.originalname.split('.').pop();
+      const fileName = `products/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(fileName, file.buffer, {
+          contentType: file.mimetype,
+          upsert: true,
+        });
+
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage
+          .from('product-images')
+          .getPublicUrl(fileName);
+        imageUrl = urlData.publicUrl;
+      }
+    }
+
+    const updatedProduct = await prisma.product.update({
+      where: { id: productId },
+      data: {
+        ...(name || title ? { name: name || title } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(price ? { price: parseFloat(price) } : {}),
+        ...(category ? { category } : {}),
+        ...(stock !== undefined ? { stock: parseInt(stock) } : {}),
+        ...(sku ? { sku } : {}),
+        ...(imageUrl ? { image: imageUrl } : {}),
+        ...(tags ? { tags: Array.isArray(tags) ? tags : tags.split(',').map((t: string) => t.trim()) } : {}),
+      },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Alaabta waa la cusbooneysiiyay!",
+      data: updatedProduct,
+    });
+  } catch (error: any) {
+    console.error("Update Product Error:", error);
+    res.status(500).json({ error: "Cilad ayaa ka dhacday cusbooneysiinta alaabta." });
+  }
+};
+
+// 6. TIRTIRISTA ALAABTA (DELETE PRODUCT)
+export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const productId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    await prisma.product.delete({
+      where: { id: productId },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Alaabta si toos ah ayaa loo tirtiray.",
+    });
+  } catch (error: any) {
+    console.error("Delete Product Error:", error);
+    res.status(500).json({ error: "Cilad ayaa ka dhacday tirtirista alaabta." });
   }
 };
