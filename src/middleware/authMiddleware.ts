@@ -24,14 +24,16 @@ export const authenticateToken = (req: AuthenticatedRequest, res: Response, next
       return;
     }
 
-    // Haddii uu qofku yahay Vendor
-    if (decoded.type === 'VENDOR') {
+    // Hubi nooca account-ka (Case-insensitive check)
+    const type = decoded.type ? String(decoded.type).toUpperCase() : '';
+
+    if (type === 'VENDOR') {
       req.vendorId = decoded.id;
       req.userRole = 'VENDOR';
     } else {
-      // Haddii uu qofku yahay User (Macmiil ama Admin)
+      // Haddii uu yahay User ama Admin (U beddel uppercase si uu adminMiddleware-ku u helo 'ADMIN')
       req.userId = decoded.id;
-      req.userRole = decoded.role;
+      req.userRole = decoded.role ? String(decoded.role).toUpperCase() : 'USER';
     }
 
     next();

@@ -3,8 +3,8 @@ import { AuthenticatedRequest } from './authMiddleware.js';
 
 /**
  * requireAdmin Middleware
- * Waxaa la raddom-gareeyaa marka la rabo in la xaqiijiyo in qofka soo galay uu yahay Admin.
- * Fiiro gaar ah: Middleware-kani wuxuu had iyo jeer yimaadaa ka dib 'authenticateToken'.
+ * Waxaa la isticmaalaa marka la rabo in la xaqiijiyo in qofka soo galay uu yahay Admin.
+ * Case-insensitive check ayaa lagu daray si uu u taageero 'admin' (small) iyo 'ADMIN' (capital).
  */
 export const requireAdmin = async (
   req: AuthenticatedRequest,
@@ -23,8 +23,8 @@ export const requireAdmin = async (
       return;
     }
 
-    // 2. Hubi in doorka adeegsaduhu yahay ADMIN
-    if (userRole !== 'ADMIN') {
+    // 2. Hubi in doorkan adeegsaduhu yahay ADMIN (iyadoo xarfaha waaweyn iyo kuwa yaryarba la oggol yahay)
+    if (userRole.toUpperCase() !== 'ADMIN') {
       res.status(403).json({ 
         success: false, 
         error: 'Fadlan laguma oggola inaad gasho qaybtan. Admin oo kaliya ayaa geli kara.' 
