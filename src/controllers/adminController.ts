@@ -121,8 +121,8 @@ export const getAdminStats = async (req: Request, res: Response): Promise<void> 
 
     // C. Tiri iibiyeyaasha (Sida ay u kala qaybsan yihiin)
     const totalVendors = await prisma.vendor.count();
-    const approvedVendors = await prisma.vendor.count({ where: { status: 'APPROVED' } });
-    const pendingVendors = await prisma.vendor.count({ where: { status: 'PENDING' } });
+    const approvedVendors = await prisma.vendor.count({ where: { status: 'approved' } });
+    const pendingVendors = await prisma.vendor.count({ where: { status: 'pending' } });
 
     // D. Tiri dhammaan alaabta ku dhex jirta Raysin (Products)
     const totalProducts = await prisma.product.count();
