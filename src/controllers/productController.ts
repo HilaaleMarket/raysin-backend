@@ -7,7 +7,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
   try {
     let payload = req.body;
 
-    if (req.body.data && typeof req.body.data === 'string') {
+    if (req.body?.data && typeof req.body.data === 'string') {
       try {
         payload = JSON.parse(req.body.data);
       } catch (e) {
@@ -15,9 +15,8 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       }
     }
 
-    const { name, title, price, description, vendorId, category, stock, sku, tags } = payload;
+    const { name, title, price, description, category, categoryId, vendorId, stock } = payload;
     const file = req.file;
-
     const productName = name || title;
 
     if (!productName || !price) {
@@ -51,17 +50,30 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       imageUrl = urlData.publicUrl;
     }
 
+    const activeVendorId = vendorId || (req as any).user?.id || 'v1';
+
+    // 👈 XALKA: Qaaqaad 'any' si TypeScript-ku uusan ugu dhagin type undefined
+    let categoryQuery: any = undefined;
+    if (categoryId) {
+      categoryQuery = { connect: { id: categoryId } };
+    } else if (category) {
+      categoryQuery = {
+        connectOrCreate: {
+          where: { name: String(category).trim().toLowerCase() },
+          create: { name: String(category).trim().toLowerCase() },
+        },
+      };
+    }
+
     const newProduct = await prisma.product.create({
       data: {
         name: productName,
         description: description || '',
         price: parseFloat(price),
-        category: category || 'general',
         stock: stock ? parseInt(stock) : 0,
-        sku: sku || `SKU-${Date.now()}`,
         image: imageUrl,
-        tags: Array.isArray(tags) ? tags : (tags ? tags.split(',').map((t: string) => t.trim()) : []),
-        vendorId: vendorId || (req as any).user?.id || 'v1',
+        vendor: { connect: { id: String(activeVendorId) } },
+        ...(categoryQuery ? { category: categoryQuery } : {}),
       },
     });
 
@@ -72,7 +84,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
     });
   } catch (error: any) {
     console.error("Create Product Error:", error);
-    res.status(500).json({ error: 'Cilad baa ka dhacday abuurista alaabta.' });
+    res.status(500).json({ error: 'Cilad baa ka dhacday abuurista alaabta.', details: error.message });
   }
 };
 
@@ -89,6 +101,7 @@ export const getMyProducts = async (req: Request, res: Response): Promise<void> 
     const products = await prisma.product.findMany({
       where: { vendorId: String(vendorId) },
       orderBy: { createdAt: 'desc' },
+      include: { category: true }
     });
 
     res.status(200).json({
@@ -106,6 +119,7 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
   try {
     const products = await prisma.product.findMany({
       orderBy: { createdAt: 'desc' },
+      include: { category: true }
     });
 
     res.status(200).json({
@@ -125,6 +139,7 @@ export const getProductById = async (req: Request, res: Response): Promise<void>
 
     const product = await prisma.product.findUnique({
       where: { id: productId },
+      include: { category: true }
     });
 
     if (!product) {
@@ -148,7 +163,7 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
     const productId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
     let payload = req.body;
 
-    if (req.body.data && typeof req.body.data === 'string') {
+    if (req.body?.data && typeof req.body.data === 'string') {
       try {
         payload = JSON.parse(req.body.data);
       } catch (e) {
@@ -156,7 +171,7 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
       }
     }
 
-    const { name, title, price, description, category, stock, sku, tags } = payload;
+    const { name, title, price, description, category, categoryId, stock } = payload;
     const file = req.file;
 
     let imageUrl = payload.image;
@@ -180,18 +195,27 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
       }
     }
 
+    const updateData: any = {};
+    if (name || title) updateData.name = name || title;
+    if (description !== undefined) updateData.description = description;
+    if (price) updateData.price = parseFloat(price);
+    if (stock !== undefined) updateData.stock = parseInt(stock);
+    if (imageUrl) updateData.image = imageUrl;
+
+    if (categoryId) {
+      updateData.category = { connect: { id: categoryId } };
+    } else if (category) {
+      updateData.category = {
+        connectOrCreate: {
+          where: { name: String(category).trim().toLowerCase() },
+          create: { name: String(category).trim().toLowerCase() },
+        },
+      };
+    }
+
     const updatedProduct = await prisma.product.update({
       where: { id: productId },
-      data: {
-        ...(name || title ? { name: name || title } : {}),
-        ...(description !== undefined ? { description } : {}),
-        ...(price ? { price: parseFloat(price) } : {}),
-        ...(category ? { category } : {}),
-        ...(stock !== undefined ? { stock: parseInt(stock) } : {}),
-        ...(sku ? { sku } : {}),
-        ...(imageUrl ? { image: imageUrl } : {}),
-        ...(tags ? { tags: Array.isArray(tags) ? tags : tags.split(',').map((t: string) => t.trim()) } : {}),
-      },
+      data: updateData,
     });
 
     res.status(200).json({
