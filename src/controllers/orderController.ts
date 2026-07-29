@@ -12,7 +12,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         userId,
         vendorId,
         totalAmount,
-        status: OrderStatus.pending,
+        status: OrderStatus.PENDING, // 👈 Sax: PENDING (uppercase)
         items: {
           create: items
         }
@@ -113,7 +113,7 @@ export const approveDirectVendorPayment = async (req: Request, res: Response) =>
       return res.status(400).json({ success: false, error: 'Vendor-ka dalabkan kama tirsana nidaamka' });
     }
 
-    if (order.status === OrderStatus.approved) {
+    if (order.status === OrderStatus.APPROVED) { // 👈 Sax: APPROVED (uppercase)
       return res.status(400).json({ success: false, error: 'Dalabkan mar hore ayaa la ansixiyey' });
     }
 
@@ -124,7 +124,7 @@ export const approveDirectVendorPayment = async (req: Request, res: Response) =>
     await prisma.$transaction([
       prisma.order.update({
         where: { id: orderId },
-        data: { status: OrderStatus.approved }
+        data: { status: OrderStatus.APPROVED } // 👈 Sax: APPROVED (uppercase)
       }),
       
       prisma.companyWallet.upsert({

@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/authMiddleware.js';
 import { PaymentService } from '../services/paymentService.js';
 import { prisma } from '../server.js';
+import { OrderStatus } from '@prisma/client'; // 👈 Waa lagu soo daray OrderStatus
 
 export const processPayment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
@@ -49,7 +50,7 @@ export const processPayment = async (req: AuthenticatedRequest, res: Response): 
         }),
         prisma.order.update({
           where: { id: order.id },
-          data: { status: 'paid' }
+          data: { status: OrderStatus.PAID } // 👈 Sax: OrderStatus.PAID halkii 'paid' ka ahayd
         })
       ]);
       res.status(200).json({ success: true, transactionId: paymentResult.transactionId });
