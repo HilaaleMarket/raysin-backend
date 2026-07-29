@@ -3,7 +3,6 @@ import { PrismaPg } from "@prisma/adapter-pg"
 import pg from "pg"
 import bcrypt from "bcryptjs"
 
-// Ku xidh Supabase DATABASE_URL-ka isticmaalaya driver adapter-ka Prisma v7
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL })
 const adapter = new PrismaPg(pool)
 const prisma = new PrismaClient({ adapter })
@@ -11,18 +10,22 @@ const prisma = new PrismaClient({ adapter })
 async function main() {
   console.log("Nadiifinta database-ka ayaa bilaabanaysa...")
 
-  try { await prisma.dailySchedule.deleteMany() } catch (e) {}
-  try { await prisma.materialLog.deleteMany() } catch (e) {}
-  try { await prisma.labourLog.deleteMany() } catch (e) {}
-  try { await prisma.transaction.deleteMany() } catch (e) {}
-  try { await prisma.payment.deleteMany() } catch (e) {}
-  try { await prisma.orderItem.deleteMany() } catch (e) {}
-  try { await prisma.order.deleteMany() } catch (e) {}
-  try { await prisma.product.deleteMany() } catch (e) {}
-  try { await prisma.category.deleteMany() } catch (e) {}
-  try { await prisma.vendor.deleteMany() } catch (e) {}
-  try { await prisma.wallet.deleteMany() } catch (e) {}
-  try { await prisma.user.deleteMany() } catch (e) {}
+  const deleteSafely = async (fn: () => Promise<any>) => {
+    try { await fn() } catch (e) { /* ignore deletion order errors */ }
+  }
+
+  await deleteSafely(() => prisma.dailySchedule.deleteMany())
+  await deleteSafely(() => prisma.materialLog.deleteMany())
+  await deleteSafely(() => prisma.labourLog.deleteMany())
+  await deleteSafely(() => prisma.transaction.deleteMany())
+  await deleteSafely(() => prisma.payment.deleteMany())
+  await deleteSafely(() => prisma.orderItem.deleteMany())
+  await deleteSafely(() => prisma.order.deleteMany())
+  await deleteSafely(() => prisma.product.deleteMany())
+  await deleteSafely(() => prisma.category.deleteMany())
+  await deleteSafely(() => prisma.vendor.deleteMany())
+  await deleteSafely(() => prisma.wallet.deleteMany())
+  await deleteSafely(() => prisma.user.deleteMany())
 
   console.log("Abuurista Admin-ka rasmiga ah ee Hilaale / Raysin...")
 

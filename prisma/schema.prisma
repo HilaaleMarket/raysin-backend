@@ -17,13 +17,13 @@ enum Role {
 }
 
 enum OrderStatus {
-  pending
-  paid
-  approved
-  shipped
-  completed
-  cancelled
-  failed
+  PENDING
+  PAID
+  APPROVED
+  SHIPPED
+  COMPLETED
+  CANCELLED
+  FAILED
 }
 
 enum VendorTier {
@@ -52,21 +52,21 @@ enum PaymentProvider {
 // ==========================================
 
 model User {
-  id           String        @id @default(uuid())
+  id           String    @id @default(uuid())
   name         String
-  email        String?       @unique
-  phone        String?       @unique
+  email        String?   @unique
+  phone        String?   @unique
   password     String
-  role         Role          @default(user)
+  role         Role      @default(user)
   city         String?
   avatar       String?
-  referralCode String?       @unique
+  referralCode String?   @unique
   referredById String?
-  referredBy   User?         @relation("UserReferrals", fields: [referredById], references: [id])
-  referrals    User[]        @relation("UserReferrals")
-  points       Int           @default(0)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  referredBy   User?     @relation("UserReferrals", fields: [referredById], references: [id])
+  referrals    User[]    @relation("UserReferrals")
+  points       Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   wallet       Wallet?
   orders       Order[]
@@ -83,9 +83,18 @@ model Vendor {
   password       String
   phone          String?       @unique
   shopName       String?
-  logo           String?
-  banner         String?
-  status         String        @default("pending") // pending, active, suspended
+  logo           String?       
+  banner         String?       
+  
+  merchantNumber String?       
+  paymentMethod  String?       
+  city           String?       
+  district       String?       
+  address        String?       
+  latitude       Float?        
+  longitude      Float?        
+
+  status         String        @default("pending")
   balance        Float         @default(0.0)
   totalSales     Float         @default(0.0)
   tier           VendorTier    @default(STANDARD)
@@ -107,35 +116,35 @@ model Vendor {
 // ==========================================
 
 model Category {
-  id          String    @id @default(uuid())
-  name        String    @unique
-  slug        String?   @unique
-  image       String?
-  products    Product[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @default(now()) @updatedAt
+  id        String    @id @default(uuid())
+  name      String    @unique
+  slug      String?   @unique
+  image     String?
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt // 🟢 HAGAAN: Waa la ka saaray @default(now())
 }
 
 model Product {
-  id          String      @id @default(uuid())
+  id          String   @id @default(uuid())
   name        String
   description String?
   price       Float
-  stock       Int         @default(0)
-  sku         String?     @unique
-  image       String?     // Primary image URL
-  images      String[]    @default([]) // Gallery images
-  tags        String[]    @default([])
-  isFeatured  Boolean     @default(false)
+  stock       Int      @default(0)
+  sku         String?  @unique
+  image       String?  
+  images      String[] @default([]) 
+  tags        String[] @default([])
+  isFeatured  Boolean  @default(false)
   
   vendorId    String
-  vendor      Vendor      @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   
   categoryId  String?
-  category    Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   orderItems  OrderItem[]
   reviews     Review[]
@@ -164,37 +173,41 @@ model Review {
 // ==========================================
 
 model Order {
-  id              String        @id @default(uuid())
-  orderNumber     String        @unique @default(uuid())
+  id              String      @id @default(uuid())
+  orderNumber     String      @unique @default(uuid())
   
   userId          String?
-  user            User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user            User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  customerName    String
+  customerEmail   String
+  customerPhone   String
+  shippingAddress String
+  city            String
+  notes           String?     
+
+  totalAmount     Float
+  status          OrderStatus @default(PENDING) // 🟢 HAGAAN: Enums la waafajiyay
   
   vendorId        String?
-  vendor          Vendor?       @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  vendor          Vendor?     @relation(fields: [vendorId], references: [id])
   
-  shippingAddress String?
-  totalAmount     Float
-  status          OrderStatus   @default(pending)
-
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
-  items           OrderItem[]
-  payments        Payment[]
+  orderItems      OrderItem[]
+  payments        Payment[]   // 🟢 HAGAAN: Xiriirka Payment-ka oo la dhameystiray
   transactions    Transaction[]
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
 
-  @@index([userId])
   @@index([vendorId])
-  @@index([status])
+  @@index([userId])
 }
 
 model OrderItem {
-  id        String   @id @default(uuid())
+  id        String  @id @default(uuid())
   orderId   String
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
   quantity  Int
   price     Float
 }
@@ -226,7 +239,7 @@ model Transaction {
   provider    PaymentProvider?
   status      PaymentStatus    @default(PENDING)
   referenceId String?          @unique
-  type        String           @default("PURCHASE") // PURCHASE, PAYOUT, REFUND
+  type        String           @default("PURCHASE") 
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 

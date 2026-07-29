@@ -5,13 +5,14 @@ import { supabase } from '../config/supabaseClient.js';
 // 1. ABUURISTA ALAABTA (CREATE PRODUCT)
 export const createProduct = async (req: Request, res: Response): Promise<void> => {
   try {
-    let payload = req.body;
+    let payload = req.body || {};
 
-    if (req.body?.data && typeof req.body.data === 'string') {
+    // A. Parse JSON if body is coming inside 'data' key (FormData case)
+    if (payload.data && typeof payload.data === 'string') {
       try {
-        payload = JSON.parse(req.body.data);
+        payload = JSON.parse(payload.data);
       } catch (e) {
-        console.error("JSON parse error on req.body.data", e);
+        console.error("JSON parse error on req.body.data:", e);
       }
     }
 
@@ -19,11 +20,64 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
     const file = req.file;
     const productName = name || title;
 
-    if (!productName || !price) {
-      res.status(400).json({ error: 'Fadlan soo dhiib magaca alaabta (name) iyo qiimaha (price).' });
+    const parsedPrice = parseFloat(price);
+    if (!productName || isNaN(parsedPrice)) {
+      res.status(400).json({ error: 'Fadlan soo dhiib magaca alaabta (name) iyo qiimaha saxda ah (price).' });
       return;
     }
 
+    // B. VENDOR RESOLUTION LOGIC
+    const rawUserId = (req as any).user?.id;
+    let targetVendorId: string | null = null;
+
+    // 1️⃣ Check if valid vendorId was sent in request body/payload
+    if (vendorId && vendorId !== "v1") {
+      const vendorExists = await prisma.vendor.findUnique({ where: { id: String(vendorId) } });
+      if (vendorExists) targetVendorId = vendorExists.id;
+    }
+
+    // 2️⃣ Check auth user ID matching Vendor ID or Vendor Email
+    if (!targetVendorId && rawUserId) {
+      const directVendor = await prisma.vendor.findUnique({ where: { id: String(rawUserId) } });
+      if (directVendor) {
+        targetVendorId = directVendor.id;
+      } else {
+        const userObj = await prisma.user.findUnique({
+          where: { id: String(rawUserId) },
+          select: { email: true }
+        });
+
+        if (userObj?.email) {
+          const vendorByEmail = await prisma.vendor.findFirst({
+            where: { email: userObj.email }
+          });
+          if (vendorByEmail) targetVendorId = vendorByEmail.id;
+        }
+      }
+    }
+
+    // 3️⃣ Fallback: Use the first available Vendor in the database
+    if (!targetVendorId) {
+      const fallbackVendor = await prisma.vendor.findFirst();
+      if (fallbackVendor) {
+        targetVendorId = fallbackVendor.id;
+      }
+    }
+
+    // 4️⃣ Fail-safe: Create a base store vendor if DB has 0 vendors
+    if (!targetVendorId) {
+      const defaultVendor = await prisma.vendor.create({
+        data: {
+          name: "Main Store",
+          shopName: "Hilaale Main Store",
+          phone: "000000000",
+          password: "default_secure_password_123"
+        }
+      });
+      targetVendorId = defaultVendor.id;
+    }
+
+    // C. SUPABASE IMAGE UPLOAD
     let imageUrl = payload.image || '';
 
     if (file) {
@@ -50,30 +104,41 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       imageUrl = urlData.publicUrl;
     }
 
-    const activeVendorId = vendorId || (req as any).user?.id || 'v1';
-
-    // 👈 XALKA: Qaaqaad 'any' si TypeScript-ku uusan ugu dhagin type undefined
-    let categoryQuery: any = undefined;
+    // D. CATEGORY RESOLUTION
+    let resolvedCategoryId: string | null = null;
+    
     if (categoryId) {
-      categoryQuery = { connect: { id: categoryId } };
-    } else if (category) {
-      categoryQuery = {
-        connectOrCreate: {
-          where: { name: String(category).trim().toLowerCase() },
-          create: { name: String(category).trim().toLowerCase() },
-        },
-      };
+      const catExists = await prisma.category.findUnique({ where: { id: String(categoryId) } });
+      if (catExists) resolvedCategoryId = catExists.id;
     }
 
+    if (!resolvedCategoryId && category) {
+      const catName = String(category).trim();
+      const existingCat = await prisma.category.findFirst({
+        where: { name: { equals: catName, mode: 'insensitive' } }
+      });
+
+      if (existingCat) {
+        resolvedCategoryId = existingCat.id;
+      } else {
+        const newCat = await prisma.category.create({
+          data: { name: catName }
+        });
+        resolvedCategoryId = newCat.id;
+      }
+    }
+
+    // E. CREATE PRODUCT IN DATABASE
+    const parsedStock = parseInt(stock, 10);
     const newProduct = await prisma.product.create({
       data: {
         name: productName,
         description: description || '',
-        price: parseFloat(price),
-        stock: stock ? parseInt(stock) : 0,
+        price: parsedPrice,
+        stock: isNaN(parsedStock) ? 0 : parsedStock,
         image: imageUrl,
-        vendor: { connect: { id: String(activeVendorId) } },
-        ...(categoryQuery ? { category: categoryQuery } : {}),
+        vendorId: targetVendorId,
+        ...(resolvedCategoryId ? { categoryId: resolvedCategoryId } : {}),
       },
     });
 
@@ -91,15 +156,30 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
 // 2. SOO SAARISTA ALAABTA GANACSADU LEEYAHAY (GET MY PRODUCTS)
 export const getMyProducts = async (req: Request, res: Response): Promise<void> => {
   try {
-    const vendorId = (req as any).user?.id || (req.query.vendorId as string);
+    const rawUserId = (req as any).user?.id;
+    const queryVendorId = req.query.vendorId as string;
 
-    if (!vendorId) {
+    let targetVendorId = queryVendorId;
+
+    if (!targetVendorId && rawUserId) {
+      const vendor = await prisma.vendor.findFirst({
+        where: {
+          OR: [
+            { id: String(rawUserId) },
+            { email: (req as any).user?.email || '' }
+          ]
+        }
+      });
+      if (vendor) targetVendorId = vendor.id;
+    }
+
+    if (!targetVendorId) {
       res.status(400).json({ error: "Vendor ID is required" });
       return;
     }
 
     const products = await prisma.product.findMany({
-      where: { vendorId: String(vendorId) },
+      where: { vendorId: targetVendorId },
       orderBy: { createdAt: 'desc' },
       include: { category: true }
     });
@@ -115,7 +195,7 @@ export const getMyProducts = async (req: Request, res: Response): Promise<void> 
 };
 
 // 3. SOO SAARISTA DHAMMAAN ALAABTA (GET ALL PRODUCTS)
-export const getProducts = async (req: Request, res: Response): Promise<void> => {
+export const getProducts = async (_req: Request, res: Response): Promise<void> => {
   try {
     const products = await prisma.product.findMany({
       orderBy: { createdAt: 'desc' },
@@ -135,7 +215,7 @@ export const getProducts = async (req: Request, res: Response): Promise<void> =>
 // 4. SOO SAARISTA ALAAB GAAR AH (GET PRODUCT BY ID)
 export const getProductById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const productId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const productId = String(req.params.id);
 
     const product = await prisma.product.findUnique({
       where: { id: productId },
@@ -160,14 +240,14 @@ export const getProductById = async (req: Request, res: Response): Promise<void>
 // 5. CUSBOONAYSIINTA ALAABTA (UPDATE PRODUCT)
 export const updateProduct = async (req: Request, res: Response): Promise<void> => {
   try {
-    const productId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    let payload = req.body;
+    const productId = String(req.params.id);
+    let payload = req.body || {};
 
-    if (req.body?.data && typeof req.body.data === 'string') {
+    if (payload.data && typeof payload.data === 'string') {
       try {
-        payload = JSON.parse(req.body.data);
+        payload = JSON.parse(payload.data);
       } catch (e) {
-        console.error("JSON parse error on update", e);
+        console.error("JSON parse error on update:", e);
       }
     }
 
@@ -195,22 +275,37 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
       }
     }
 
-    const updateData: any = {};
+    const updateData: Record<string, any> = {};
     if (name || title) updateData.name = name || title;
     if (description !== undefined) updateData.description = description;
-    if (price) updateData.price = parseFloat(price);
-    if (stock !== undefined) updateData.stock = parseInt(stock);
+    
+    if (price !== undefined) {
+      const parsedPrice = parseFloat(price);
+      if (!isNaN(parsedPrice)) updateData.price = parsedPrice;
+    }
+    
+    if (stock !== undefined) {
+      const parsedStock = parseInt(stock, 10);
+      if (!isNaN(parsedStock)) updateData.stock = parsedStock;
+    }
+
     if (imageUrl) updateData.image = imageUrl;
 
     if (categoryId) {
-      updateData.category = { connect: { id: categoryId } };
+      const catExists = await prisma.category.findUnique({ where: { id: String(categoryId) } });
+      if (catExists) updateData.categoryId = catExists.id;
     } else if (category) {
-      updateData.category = {
-        connectOrCreate: {
-          where: { name: String(category).trim().toLowerCase() },
-          create: { name: String(category).trim().toLowerCase() },
-        },
-      };
+      const catName = String(category).trim();
+      const existingCat = await prisma.category.findFirst({
+        where: { name: { equals: catName, mode: 'insensitive' } }
+      });
+
+      if (existingCat) {
+        updateData.categoryId = existingCat.id;
+      } else {
+        const newCat = await prisma.category.create({ data: { name: catName } });
+        updateData.categoryId = newCat.id;
+      }
     }
 
     const updatedProduct = await prisma.product.update({
@@ -225,6 +320,10 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
     });
   } catch (error: any) {
     console.error("Update Product Error:", error);
+    if (error.code === 'P2025') {
+      res.status(404).json({ error: "Alaabta la doonayo in la cusbooneysiiyo ma jirto." });
+      return;
+    }
     res.status(500).json({ error: "Cilad ayaa ka dhacday cusbooneysiinta alaabta." });
   }
 };
@@ -232,7 +331,7 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
 // 6. TIRTIRISTA ALAABTA (DELETE PRODUCT)
 export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
   try {
-    const productId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const productId = String(req.params.id);
 
     await prisma.product.delete({
       where: { id: productId },
@@ -244,6 +343,10 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
     });
   } catch (error: any) {
     console.error("Delete Product Error:", error);
+    if (error.code === 'P2025') {
+      res.status(404).json({ error: "Alaabta la doonayo in la tirtiro ma jirto." });
+      return;
+    }
     res.status(500).json({ error: "Cilad ayaa ka dhacday tirtirista alaabta." });
   }
 };
