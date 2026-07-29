@@ -12,26 +12,34 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         userId,
         vendorId,
         totalAmount,
-        status: OrderStatus.pending, // 👈 Sax: PENDING (uppercase)
+        status: OrderStatus.pending, // lowercase: pending
         items: {
-          create: items
+          create: items.map((item: any) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+            price: item.price
+          }))
         }
+      },
+      include: {
+        items: true // relation-ka saxda ah waa items
       }
     });
 
     res.status(201).json({ success: true, data: newOrder });
   } catch (error: any) {
+    console.error("Create Order Error:", error);
     res.status(500).json({ success: false, error: error.message || 'Cilad baa ka dhacday samaynta dalabka' });
   }
 };
 
-// 2. HELIDA DALAB ID AAN PENDING AHAYN
+// 2. HELIDA DALAB ID
 export const getOrderById = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = req.params.id as string;
 
     if (!id) {
-      res.status(400).json({ success: false, error: 'ID-ga dalabka waa halkan lagu darayaa' });
+      res.status(400).json({ success: false, error: 'ID-ga dalabka waa lagu doonayaa' });
       return;
     }
 
@@ -95,7 +103,7 @@ export const getVendorOrders = async (req: Request, res: Response): Promise<void
   }
 };
 
-// 5. ANSIDINTA DALABKA IYO KALA JARANSEYNTA DAKHLIGA
+// 5. ANSIXINTA DALABKA IYO KALA JARANSEYNTA DAKHLIGA
 export const approveDirectVendorPayment = async (req: Request, res: Response) => {
   const orderId = req.params.orderId as string;
 
@@ -113,7 +121,7 @@ export const approveDirectVendorPayment = async (req: Request, res: Response) =>
       return res.status(400).json({ success: false, error: 'Vendor-ka dalabkan kama tirsana nidaamka' });
     }
 
-    if (order.status === OrderStatus.approved) { // 👈 Sax: APPROVED (uppercase)
+    if (order.status === OrderStatus.approved) { // lowercase: approved
       return res.status(400).json({ success: false, error: 'Dalabkan mar hore ayaa la ansixiyey' });
     }
 
@@ -124,7 +132,7 @@ export const approveDirectVendorPayment = async (req: Request, res: Response) =>
     await prisma.$transaction([
       prisma.order.update({
         where: { id: orderId },
-        data: { status: OrderStatus.approved } // 👈 Sax: APPROVED (uppercase)
+        data: { status: OrderStatus.approved }
       }),
 
       prisma.companyWallet.upsert({
@@ -155,8 +163,8 @@ export const approveDirectVendorPayment = async (req: Request, res: Response) =>
       }
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error(error);
-    return res.status(500).json({ success: false, error: 'Cilad baa ka dhacday kala jaranseynta dakhliga.' });
+    return res.status(500).json({ success: false, error: error.message || 'Cilad baa ka dhacday kala jaranseynta dakhliga.' });
   }
 };
