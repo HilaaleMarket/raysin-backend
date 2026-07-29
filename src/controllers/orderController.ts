@@ -5,15 +5,21 @@ import { OrderStatus } from '@prisma/client';
 // 1. SAMAYNTA DALAB
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { userId, vendorId, items, totalAmount } = req.body;
+    const { userId, vendorId, items, totalAmount, customerName, customerEmail, customerPhone, shippingAddress, city, notes } = req.body;
 
     const newOrder = await prisma.order.create({
       data: {
         userId,
         vendorId,
+        customerName: customerName || 'Customer',
+        customerEmail: customerEmail || 'customer@example.com',
+        customerPhone: customerPhone || '000000000',
+        shippingAddress: shippingAddress || 'N/A',
+        city: city || 'Hargeisa',
+        notes,
         totalAmount,
-        status: OrderStatus.pending,
-        items: {
+        status: OrderStatus.PENDING, // Enums Uppercase
+        orderItems: { // Relation-ka saxda ah ee schema.prisma
           create: items.map((item: any) => ({
             productId: item.productId,
             quantity: item.quantity,
@@ -22,7 +28,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         }
       },
       include: {
-        items: true
+        orderItems: true
       }
     });
 
@@ -48,7 +54,7 @@ export const getOrderById = async (req: Request, res: Response): Promise<void> =
       include: {
         vendor: true,
         user: true,
-        items: true
+        orderItems: true
       }
     });
 
@@ -72,7 +78,7 @@ export const getUserOrders = async (req: Request, res: Response): Promise<void> 
       where: { userId },
       include: {
         vendor: true,
-        items: true
+        orderItems: true
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -92,7 +98,7 @@ export const getVendorOrders = async (req: Request, res: Response): Promise<void
       where: { vendorId },
       include: {
         user: true,
-        items: true
+        orderItems: true
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -121,7 +127,7 @@ export const approveDirectVendorPayment = async (req: Request, res: Response) =>
       return res.status(400).json({ success: false, error: 'Vendor-ka dalabkan kama tirsana nidaamka' });
     }
 
-    if (order.status === OrderStatus.approved) {
+    if (order.status === OrderStatus.APPROVED) {
       return res.status(400).json({ success: false, error: 'Dalabkan mar hore ayaa la ansixiyey' });
     }
 
@@ -132,7 +138,7 @@ export const approveDirectVendorPayment = async (req: Request, res: Response) =>
     await prisma.$transaction([
       prisma.order.update({
         where: { id: orderId },
-        data: { status: OrderStatus.approved }
+        data: { status: OrderStatus.APPROVED }
       }),
 
       prisma.companyWallet.upsert({
