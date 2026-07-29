@@ -50,7 +50,7 @@ export const processPayment = async (req: AuthenticatedRequest, res: Response): 
         }),
         prisma.order.update({
           where: { id: order.id },
-          data: { status: OrderStatus.PAID } // 👈 Sax: OrderStatus.PAID halkii 'paid' ka ahayd
+          data: { status: OrderStatus.paid } // 👈 Sax: OrderStatus.PAID halkii 'paid' ka ahayd
         })
       ]);
       res.status(200).json({ success: true, transactionId: paymentResult.transactionId });
