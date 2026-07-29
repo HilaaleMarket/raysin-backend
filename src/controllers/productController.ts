@@ -106,7 +106,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
 
     // D. CATEGORY RESOLUTION
     let resolvedCategoryId: string | null = null;
-    
+
     if (categoryId) {
       const catExists = await prisma.category.findUnique({ where: { id: String(categoryId) } });
       if (catExists) resolvedCategoryId = catExists.id;
@@ -278,12 +278,12 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
     const updateData: Record<string, any> = {};
     if (name || title) updateData.name = name || title;
     if (description !== undefined) updateData.description = description;
-    
+
     if (price !== undefined) {
       const parsedPrice = parseFloat(price);
       if (!isNaN(parsedPrice)) updateData.price = parsedPrice;
     }
-    
+
     if (stock !== undefined) {
       const parsedStock = parseInt(stock, 10);
       if (!isNaN(parsedStock)) updateData.stock = parsedStock;
