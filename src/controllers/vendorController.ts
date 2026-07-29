@@ -20,7 +20,10 @@ export const getVendors = async (req: Request, res: Response): Promise<void> => 
     return;
   } catch (error: any) {
     console.error("Get Vendors Error:", error);
-    res.status(500).json({ error: "Cilad ayaa ka dhacday soo saarista ganacsatada." });
+    res.status(500).json({
+      success: false,
+      error: "Cilad ayaa ka dhacday soo saarista ganacsatada."
+    });
     return;
   }
 };
@@ -28,7 +31,13 @@ export const getVendors = async (req: Request, res: Response): Promise<void> => 
 // 2. SOO SAARISTA GANACSADE GAAR AH (GET VENDOR BY ID)
 export const getVendorById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const vendorId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const rawId = req.params.id;
+    const vendorId = Array.isArray(rawId) ? rawId[0] : rawId;
+
+    if (!vendorId) {
+      res.status(400).json({ success: false, error: "ID-ga ganacsadaha waa la waayay." });
+      return;
+    }
 
     const vendor = await prisma.vendor.findUnique({
       where: { id: vendorId },
@@ -39,7 +48,7 @@ export const getVendorById = async (req: Request, res: Response): Promise<void> 
     });
 
     if (!vendor) {
-      res.status(404).json({ error: "Ganacsadaha la doonayo ma jirto." });
+      res.status(404).json({ success: false, error: "Ganacsadaha la doonayo ma jiro." });
       return;
     }
 
@@ -50,7 +59,10 @@ export const getVendorById = async (req: Request, res: Response): Promise<void> 
     return;
   } catch (error: any) {
     console.error("Get Vendor By ID Error:", error);
-    res.status(500).json({ error: "Cilad ayaa ka dhacday soo saarista ganacsadaha." });
+    res.status(500).json({
+      success: false,
+      error: "Cilad ayaa ka dhacday soo saarista ganacsadaha."
+    });
     return;
   }
 };
@@ -61,7 +73,10 @@ export const createVendor = async (req: Request, res: Response): Promise<void> =
     const { name, email, phone, shopName, password, commissionRate } = req.body;
 
     if (!name || !phone) {
-      res.status(400).json({ error: "Fadlan soo dhiib magaca (name) iyo taleefanka (phone)." });
+      res.status(400).json({
+        success: false,
+        error: "Fadlan soo dhiib magaca (name) iyo taleefanka (phone)."
+      });
       return;
     }
 
@@ -73,6 +88,7 @@ export const createVendor = async (req: Request, res: Response): Promise<void> =
         shopName: shopName || `${name}'s Store`,
         password: password || 'default_pass_123',
         commissionRate: commissionRate ? parseFloat(commissionRate) : 0.02,
+        status: 'pending', // Default status marka la abuurayo
       }
     });
 
@@ -84,15 +100,26 @@ export const createVendor = async (req: Request, res: Response): Promise<void> =
     return;
   } catch (error: any) {
     console.error("Create Vendor Error:", error);
-    res.status(500).json({ error: "Cilad ayaa ka dhacday diiwaangelinta ganacsadaha.", details: error.message });
+    res.status(500).json({
+      success: false,
+      error: "Cilad ayaa ka dhacday diiwaangelinta ganacsadaha.",
+      details: error.message
+    });
     return;
   }
 };
 
-// 4. CUSBOONAYSIINTA GANACSADA (UPDATE VENDOR)
+// 4. CUSBOONAYSIINTA XOGTA GANACSADA (UPDATE VENDOR DETAILS)
 export const updateVendor = async (req: Request, res: Response): Promise<void> => {
   try {
-    const vendorId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const rawId = req.params.id;
+    const vendorId = Array.isArray(rawId) ? rawId[0] : rawId;
+
+    if (!vendorId) {
+      res.status(400).json({ success: false, error: "ID-ga ganacsadaha waa la waayay." });
+      return;
+    }
+
     const { name, shopName, phone, email, commissionRate } = req.body;
 
     const updatedVendor = await prisma.vendor.update({
@@ -114,7 +141,61 @@ export const updateVendor = async (req: Request, res: Response): Promise<void> =
     return;
   } catch (error: any) {
     console.error("Update Vendor Error:", error);
-    res.status(500).json({ error: "Cilad ayaa ka dhacday cusbooneysiinta xogta ganacsadaha." });
+    res.status(500).json({
+      success: false,
+      error: "Cilad ayaa ka dhacday cusbooneysiinta xogta ganacsadaha."
+    });
+    return;
+  }
+};
+
+// 5. BEDDELIDA STATUS-KA GANACSADA (APPROVE / BLOCK / REJECT)
+export const updateVendorStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Ka raadso ID-ga URL Params ama Body Payload
+    const rawId = req.params.id || req.body.vendorId;
+    const vendorId = Array.isArray(rawId) ? rawId[0] : rawId;
+    const { status } = req.body;
+
+    if (!vendorId) {
+      res.status(400).json({ success: false, error: "ID-ga ganacsadaha waa la waayay." });
+      return;
+    }
+
+    if (!status) {
+      res.status(400).json({ success: false, error: "Status-ka cusub waa la waayay." });
+      return;
+    }
+
+    const normalizedStatus = status.toLowerCase();
+    const validStatuses = ['approved', 'pending', 'blocked', 'rejected'];
+
+    if (!validStatuses.includes(normalizedStatus)) {
+      res.status(400).json({
+        success: false,
+        error: `Status aan sax ahayn. Kuwa la oggol yahay: ${validStatuses.join(', ')}`,
+      });
+      return;
+    }
+
+    const updatedVendor = await prisma.vendor.update({
+      where: { id: vendorId },
+      data: { status: normalizedStatus },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Status-ka ganacsadaha si guul leh ayaa loogu beddelay ${normalizedStatus}`,
+      data: updatedVendor,
+    });
+    return;
+  } catch (error: any) {
+    console.error("Update Vendor Status Error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Cilad ayaa ka dhacday beddelida status-ka ganacsadaha.",
+      details: error.message,
+    });
     return;
   }
 };
