@@ -12,7 +12,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         userId,
         vendorId,
         totalAmount,
-        status: OrderStatus.pending, // lowercase: pending
+        status: OrderStatus.pending,
         items: {
           create: items.map((item: any) => ({
             productId: item.productId,
@@ -22,7 +22,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         }
       },
       include: {
-        items: true // relation-ka saxda ah waa items
+        items: true
       }
     });
 
@@ -63,7 +63,7 @@ export const getOrderById = async (req: Request, res: Response): Promise<void> =
   }
 };
 
-// 3. HELIDA DALABYADA USER-KA (getUserOrders)
+// 3. HELIDA DALABYADA USER-KA
 export const getUserOrders = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.params.userId as string;
@@ -83,7 +83,7 @@ export const getUserOrders = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-// 4. HELIDA DALABYADA VENDOR-KA (getVendorOrders)
+// 4. HELIDA DALABYADA VENDOR-KA
 export const getVendorOrders = async (req: Request, res: Response): Promise<void> => {
   try {
     const vendorId = req.params.vendorId as string;
@@ -121,7 +121,7 @@ export const approveDirectVendorPayment = async (req: Request, res: Response) =>
       return res.status(400).json({ success: false, error: 'Vendor-ka dalabkan kama tirsana nidaamka' });
     }
 
-    if (order.status === OrderStatus.approved) { // lowercase: approved
+    if (order.status === OrderStatus.approved) {
       return res.status(400).json({ success: false, error: 'Dalabkan mar hore ayaa la ansixiyey' });
     }
 
