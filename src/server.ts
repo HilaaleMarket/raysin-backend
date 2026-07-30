@@ -19,8 +19,8 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Prisma Setup
-const pool = new pg.Pool({ 
-  connectionString: process.env.DATABASE_URL 
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL
 });
 
 const adapter = new PrismaPg(pool);
@@ -38,7 +38,7 @@ const allowedOrigins = [
 
 const corsOptions: CorsOptions = {
   origin: (
-    origin: string | undefined, 
+    origin: string | undefined,
     callback: (err: Error | null, allow?: boolean) => void
   ) => {
     if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
@@ -73,7 +73,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api', apiRoutes);
 app.use('/api/orders', orderRoutes);
-app.use('/api/products', productRoutes); // 👈 KU DAR KAN
+app.use('/api/products', productRoutes); // 👈 Sidaan inay ahaato waa sax
 app.use('/api/vendors', vendorRoutes);   // 👈 KU DAR KAN
 
 app.listen(PORT, () => {
