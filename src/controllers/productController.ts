@@ -2,8 +2,17 @@ import { Request, Response } from 'express';
 import { prisma } from '../server.js';
 import { supabase } from '../config/supabaseClient.js';
 
+// Extend Request Type for authenticated user
+interface AuthRequest extends Request {
+  user?: {
+    id: string;
+    email?: string;
+    role?: string;
+  };
+}
+
 // 1. ABUURISTA ALAABTA (CREATE PRODUCT)
-export const createProduct = async (req: Request, res: Response): Promise<void> => {
+export const createProduct = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     let payload = req.body || {};
 
@@ -25,52 +34,39 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const rawUserId = (req as any).user?.id;
+    const rawUserId = req.user?.id;
+    const userEmail = req.user?.email;
     let targetVendorId: string | null = null;
 
+    // A. Ugu horreyn ka sax Frontend Payload-ka haddii uu yahay ID jira
     if (vendorId && vendorId !== "v1") {
       const vendorExists = await prisma.vendor.findUnique({ where: { id: String(vendorId) } });
       if (vendorExists) targetVendorId = vendorExists.id;
     }
 
+    // B. Haddii aan wali la helin, ka raadi JWT Token-ka Logged-in User-ka
     if (!targetVendorId && rawUserId) {
       const directVendor = await prisma.vendor.findUnique({ where: { id: String(rawUserId) } });
       if (directVendor) {
         targetVendorId = directVendor.id;
-      } else {
-        const userObj = await prisma.user.findUnique({
-          where: { id: String(rawUserId) },
-          select: { email: true }
+      } else if (userEmail) {
+        const vendorByEmail = await prisma.vendor.findFirst({
+          where: { email: userEmail }
         });
-
-        if (userObj?.email) {
-          const vendorByEmail = await prisma.vendor.findFirst({
-            where: { email: userObj.email }
-          });
-          if (vendorByEmail) targetVendorId = vendorByEmail.id;
-        }
+        if (vendorByEmail) targetVendorId = vendorByEmail.id;
       }
     }
 
+    // ❌ Halkan waxaa ka weynaa findFirst() khaldan oo alaabta Nadiira Yuusuf ku shobi jiray.
+    // Waxaan ku beddelnay STRICT AUTH CHECK:
     if (!targetVendorId) {
-      const fallbackVendor = await prisma.vendor.findFirst();
-      if (fallbackVendor) {
-        targetVendorId = fallbackVendor.id;
-      }
-    }
-
-    if (!targetVendorId) {
-      const defaultVendor = await prisma.vendor.create({
-        data: {
-          name: "Main Store",
-          shopName: "Hilaale Main Store",
-          phone: "000000000",
-          password: "default_secure_password_123"
-        }
+      res.status(401).json({
+        error: 'Adoo mahadsan, ma haysatid akoon Vendor ah oo sax ah ama log-in kuma adid.'
       });
-      targetVendorId = defaultVendor.id;
+      return;
     }
 
+    // C. Upload-ka sawirka (Supabase)
     let imageUrl = payload.image || '';
 
     if (file) {
@@ -101,6 +97,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
       }
     }
 
+    // D. Xallinta Category-ga
     let resolvedCategoryId: string | null = null;
 
     if (categoryId) {
@@ -125,6 +122,8 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
     }
 
     const parsedStock = parseInt(stock, 10);
+
+    // E. Abuurista Alaabta Database-ka
     const newProduct = await prisma.product.create({
       data: {
         name: productName,
@@ -132,7 +131,7 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
         price: parsedPrice,
         stock: isNaN(parsedStock) ? 0 : parsedStock,
         image: imageUrl,
-        vendorId: targetVendorId,
+        vendorId: targetVendorId, // ✅ ID-ga saxda ah oo aan marnaba khaldami karin
         ...(resolvedCategoryId ? { categoryId: resolvedCategoryId } : {}),
       },
     });
@@ -149,9 +148,10 @@ export const createProduct = async (req: Request, res: Response): Promise<void> 
 };
 
 // 2. SOO SAARISTA ALAABTA GANACSADU LEEYAHAY (GET MY PRODUCTS)
-export const getMyProducts = async (req: Request, res: Response): Promise<void> => {
+export const getMyProducts = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const rawUserId = (req as any).user?.id;
+    const rawUserId = req.user?.id;
+    const userEmail = req.user?.email;
     const queryVendorId = req.query.vendorId as string;
 
     let targetVendorId = queryVendorId;
@@ -161,7 +161,7 @@ export const getMyProducts = async (req: Request, res: Response): Promise<void> 
         where: {
           OR: [
             { id: String(rawUserId) },
-            { email: (req as any).user?.email || '' }
+            { email: userEmail || '' }
           ]
         }
       });
