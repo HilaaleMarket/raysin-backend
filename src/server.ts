@@ -68,23 +68,24 @@ app.get('/api/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'ok', message: 'Hilaale Backend is running smoothly 🚀' });
 });
 
-// Routes
+// 🟢 1. API Endpoints
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
-app.use('/api/products', productRoutes); // 👈 Sidaan inay ahaato waa sax
-app.use('/api/vendors', vendorRoutes);   // 👈 KU DAR KAN
+app.use('/api/products', productRoutes);
+app.use('/api/vendors', vendorRoutes);
+app.use('/api', apiRoutes); // General routes ka dambaysii kuwa gaarka ah
 
-// 🟢 3. Custom 404 Handler (Lagu darayo Qaybta Dambe ee Routes ka dib)
+// 🟢 2. Custom 404 Handler (Request kasta oo aan route lahayn halkan ayuu soo gelaa)
 app.use((req: Request, res: Response) => {
   res.status(404).json({
     status: 'error',
-    message: '404 - API Endpoint Not Found'
+    message: '404 - Route or API Endpoint Not Found'
   });
 });
 
-// 🟢 4. Global Error Handler (Lagu darayo 404 Handler ka dib)
-app.use((err: any, req: Request, res: Response) => {
+// 🟢 3. Global Express Error Handler (Handling Server Crashes/Errors)
+app.use((err: any, req: Request, res: Response, next: any) => {
   console.error('❌ Internal Server Error:', err.stack);
 
   res.status(500).json({
@@ -94,15 +95,7 @@ app.use((err: any, req: Request, res: Response) => {
   });
 });
 
-// 🟢 Haddii route-ka la codsaday uusan jirin, soo celi JSON Not Found
-app.use('/api/*', (req: Request, res: Response) => {
-  res.status(404).json({ error: 'Endpoint not found' });
-});
-
-
-// 🔴 General / Catch-all API routes dambe la dhig
-app.use('/api', apiRoutes);
-
+// 🟢 4. Start Server
 app.listen(PORT, () => {
   console.log(`⚡️ [server]: Hilaale API Server wuxuu ka kiciyay http://localhost:${PORT}`);
 });
