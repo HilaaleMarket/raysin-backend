@@ -61,23 +61,27 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    // Upload-ka sawirka (Supabase)
+    // Upload-ka sawirka (Supabase Storage)
     let imageUrl = payload.image || '';
 
     if (file) {
       try {
-        const fileExt = file.originalname.split('.').pop();
-        const fileName = `products/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const fileExt = file.originalname.split('.').pop() || 'png';
+        // Magac gaar ah oo toos ah, iyada oo aan la gelin sub-folder aan loo baahnayn
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
-        const { error: uploadError } = await supabase.storage
+        console.log(`📸 Uploading file to Supabase: ${fileName} (${file.mimetype})`);
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
           .from('product-images')
           .upload(fileName, file.buffer, {
             contentType: file.mimetype,
+            cacheControl: '3600',
             upsert: true,
           });
 
         if (uploadError) {
-          console.error("Supabase Storage Upload Error:", uploadError.message);
+          console.error("❌ Supabase Storage Upload Error:", uploadError.message);
         } else {
           const { data: urlData } = supabase.storage
             .from('product-images')
@@ -85,10 +89,11 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
 
           if (urlData?.publicUrl) {
             imageUrl = urlData.publicUrl;
+            console.log("✅ Sawirka si sax ah ayaa loo upload-gareeyay:", imageUrl);
           }
         }
       } catch (imgErr) {
-        console.error("Image Upload Failure:", imgErr);
+        console.error("❌ Image Upload Failure:", imgErr);
       }
     }
 
@@ -245,8 +250,8 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
     let imageUrl = payload.image;
 
     if (file) {
-      const fileExt = file.originalname.split('.').pop();
-      const fileName = `products/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const fileExt = file.originalname.split('.').pop() || 'png';
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('product-images')
