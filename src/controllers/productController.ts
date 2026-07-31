@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import { prisma } from '../server.js';
 import { supabase } from '../config/supabaseClient.js';
 
-// Extend Request Type for authenticated user
 interface AuthRequest extends Request {
   user?: {
     id: string;
@@ -38,13 +37,11 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
     const userEmail = req.user?.email;
     let targetVendorId: string | null = null;
 
-    // A. Ugu horreyn ka sax Frontend Payload-ka haddii uu yahay ID jira
     if (vendorId && vendorId !== "v1") {
       const vendorExists = await prisma.vendor.findUnique({ where: { id: String(vendorId) } });
       if (vendorExists) targetVendorId = vendorExists.id;
     }
 
-    // B. Haddii aan wali la helin, ka raadi JWT Token-ka Logged-in User-ka
     if (!targetVendorId && rawUserId) {
       const directVendor = await prisma.vendor.findUnique({ where: { id: String(rawUserId) } });
       if (directVendor) {
@@ -57,8 +54,6 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
       }
     }
 
-    // ❌ Halkan waxaa ka weynaa findFirst() khaldan oo alaabta Nadiira Yuusuf ku shobi jiray.
-    // Waxaan ku beddelnay STRICT AUTH CHECK:
     if (!targetVendorId) {
       res.status(401).json({
         error: 'Adoo mahadsan, ma haysatid akoon Vendor ah oo sax ah ama log-in kuma adid.'
@@ -66,7 +61,7 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    // C. Upload-ka sawirka (Supabase)
+    // Upload-ka sawirka (Supabase)
     let imageUrl = payload.image || '';
 
     if (file) {
@@ -97,7 +92,6 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
       }
     }
 
-    // D. Xallinta Category-ga
     let resolvedCategoryId: string | null = null;
 
     if (categoryId) {
@@ -123,7 +117,6 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
 
     const parsedStock = parseInt(stock, 10);
 
-    // E. Abuurista Alaabta Database-ka
     const newProduct = await prisma.product.create({
       data: {
         name: productName,
@@ -131,7 +124,7 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
         price: parsedPrice,
         stock: isNaN(parsedStock) ? 0 : parsedStock,
         image: imageUrl,
-        vendorId: targetVendorId, // ✅ ID-ga saxda ah oo aan marnaba khaldami karin
+        vendorId: targetVendorId,
         ...(resolvedCategoryId ? { categoryId: resolvedCategoryId } : {}),
       },
     });
