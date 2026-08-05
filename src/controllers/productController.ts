@@ -12,22 +12,92 @@ interface AuthRequest extends Request {
   file?: Express.Multer.File;
 }
 
-// Helper si loogu helo vendorId si sax ah
-const getTargetVendorId = async (vendorId?: string, userId?: string, userEmail?: string) => {
-  if (vendorId && vendorId !== "v1") {
+// ==========================================
+// HELPER FUNCTIONS
+// ==========================================
+
+// Helper cusub oo Object-ka Category/Vendor toos ka tirtiraya si Skaner-ku Alert u bixin
+const sanitizeProduct = (product: any) => {
+  if (!product) return null;
+  const { category, vendor, ...rest } = product;
+
+  return {
+    ...rest,
+    categoryName: category?.name || product.categoryName || 'Uncategorized',
+    vendorName: vendor?.name || product.vendorName || 'Vendor',
+  };
+};
+
+// 1. Soo helitaanka Vendor ID sax ah (Fixed logic edge-cases)
+const getTargetVendorId = async (vendorId?: string, userId?: string, userEmail?: string): Promise<string | null> => {
+  if (vendorId && vendorId !== 'v1') {
     const vendorExists = await prisma.vendor.findUnique({ where: { id: String(vendorId) } });
     if (vendorExists) return vendorExists.id;
   }
+  
   if (userId) {
     const directVendor = await prisma.vendor.findUnique({ where: { id: String(userId) } });
     if (directVendor) return directVendor.id;
-    if (userEmail) {
-      const vendorByEmail = await prisma.vendor.findFirst({ where: { email: userEmail } });
-      if (vendorByEmail) return vendorByEmail.id;
-    }
   }
+
+  if (userEmail) {
+    const vendorByEmail = await prisma.vendor.findFirst({ where: { email: userEmail } });
+    if (vendorByEmail) return vendorByEmail.id;
+  }
+
   return null;
 };
+
+// 2. Sawirrada Upload-ka Supabase
+const uploadFileToSupabase = async (file: Express.Multer.File): Promise<string | null> => {
+  try {
+    const fileExt = file.originalname.split('.').pop() || 'png';
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('product-images')
+      .upload(fileName, file.buffer, { contentType: file.mimetype, upsert: true });
+
+    if (uploadError) {
+      console.error("Supabase Upload Error:", uploadError.message);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(fileName);
+    return urlData?.publicUrl || null;
+  } catch (error) {
+    console.error("File upload helper error:", error);
+    return null;
+  }
+};
+
+// 3. Category Resolution
+const resolveCategoryId = async (categoryId?: string, categoryName?: string): Promise<string | null> => {
+  if (categoryId) {
+    const catExists = await prisma.category.findUnique({ where: { id: String(categoryId) } });
+    if (catExists) return catExists.id;
+  }
+
+  if (categoryName) {
+    const trimmedName = String(categoryName).trim();
+    if (!trimmedName) return null;
+
+    const existingCat = await prisma.category.findFirst({
+      where: { name: { equals: trimmedName, mode: 'insensitive' } }
+    });
+
+    if (existingCat) return existingCat.id;
+
+    const newCat = await prisma.category.create({ data: { name: trimmedName } });
+    return newCat.id;
+  }
+
+  return null;
+};
+
+// ==========================================
+// CONTROLLERS
+// ==========================================
 
 // 1. ABUURISTA ALAABTA (CREATE PRODUCT)
 export const createProduct = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -57,71 +127,28 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    // MULTIPLE & SINGLE IMAGE UPLOAD VIA SUPABASE
-    let imageUrls: string[] = [];
+    let uploadedUrls: string[] = [];
+    let fileList: Express.Multer.File[] = [];
 
-    // Check multiple files (req.files)
     if (req.files) {
-      const fileList: Express.Multer.File[] = Array.isArray(req.files)
-        ? req.files
-        : Object.values(req.files).flat();
-
-      for (const file of fileList) {
-        const fileExt = file.originalname.split('.').pop() || 'png';
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('product-images')
-          .upload(fileName, file.buffer, { contentType: file.mimetype, upsert: true });
-
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(fileName);
-          if (urlData?.publicUrl) imageUrls.push(urlData.publicUrl);
-        }
-      }
+      fileList = Array.isArray(req.files) ? req.files : Object.values(req.files).flat();
+    } else if (req.file) {
+      fileList = [req.file];
     }
 
-    // Check single file (req.file)
-    if (req.file && imageUrls.length === 0) {
-      const fileExt = req.file.originalname.split('.').pop() || 'png';
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('product-images')
-        .upload(fileName, req.file.buffer, { contentType: req.file.mimetype, upsert: true });
-
-      if (!uploadError) {
-        const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(fileName);
-        if (urlData?.publicUrl) imageUrls.push(urlData.publicUrl);
-      }
+    // Parallel Uploading (Dardargelin Supabase upload-ka)
+    if (fileList.length > 0) {
+      const results = await Promise.all(fileList.map(file => uploadFileToSupabase(file)));
+      uploadedUrls = results.filter((url): url is string => url !== null);
     }
 
-    // Add string images from body payload if provided
     if (payload.images && Array.isArray(payload.images)) {
-      imageUrls = [...imageUrls, ...payload.images];
+      uploadedUrls = [...uploadedUrls, ...payload.images];
     } else if (payload.image && typeof payload.image === 'string') {
-      imageUrls.push(payload.image);
+      uploadedUrls.push(payload.image);
     }
 
-    let resolvedCategoryId: string | null = null;
-    if (categoryId) {
-      const catExists = await prisma.category.findUnique({ where: { id: String(categoryId) } });
-      if (catExists) resolvedCategoryId = catExists.id;
-    }
-
-    if (!resolvedCategoryId && category) {
-      const catName = String(category).trim();
-      const existingCat = await prisma.category.findFirst({
-        where: { name: { equals: catName, mode: 'insensitive' } }
-      });
-      if (existingCat) {
-        resolvedCategoryId = existingCat.id;
-      } else {
-        const newCat = await prisma.category.create({ data: { name: catName } });
-        resolvedCategoryId = newCat.id;
-      }
-    }
-
+    const resolvedCategoryId = await resolveCategoryId(categoryId, category);
     const parsedStock = parseInt(stock, 10);
     const parsedOriginalPrice = originalPrice ? parseFloat(originalPrice) : null;
 
@@ -132,17 +159,21 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
         price: parsedPrice,
         originalPrice: parsedOriginalPrice && !isNaN(parsedOriginalPrice) ? parsedOriginalPrice : null,
         stock: isNaN(parsedStock) ? 0 : parsedStock,
-        image: imageUrls[0] || payload.image || '',
-        images: imageUrls,
+        image: uploadedUrls[0] || payload.image || '',
+        images: uploadedUrls,
         vendorId: targetVendorId,
         ...(resolvedCategoryId ? { categoryId: resolvedCategoryId } : {}),
       },
+      include: {
+        category: { select: { name: true } },
+        vendor: { select: { name: true } },
+      }
     });
 
     res.status(201).json({
       success: true,
       message: 'Alaabta si toos ah ayaa loo kaydiyay!',
-      data: newProduct,
+      data: sanitizeProduct(newProduct),
     });
   } catch (error: any) {
     console.error("Create Product Error:", error);
@@ -159,9 +190,14 @@ export const getMyProducts = async (req: AuthRequest, res: Response): Promise<vo
 
     let targetVendorId = queryVendorId;
 
-    if (!targetVendorId && rawUserId) {
+    if (!targetVendorId && (rawUserId || userEmail)) {
       const vendor = await prisma.vendor.findFirst({
-        where: { OR: [{ id: String(rawUserId) }, { email: userEmail || '' }] }
+        where: {
+          OR: [
+            ...(rawUserId ? [{ id: String(rawUserId) }] : []),
+            ...(userEmail ? [{ email: userEmail }] : [])
+          ]
+        }
       });
       if (vendor) targetVendorId = vendor.id;
     }
@@ -174,10 +210,15 @@ export const getMyProducts = async (req: AuthRequest, res: Response): Promise<vo
     const products = await prisma.product.findMany({
       where: { vendorId: targetVendorId },
       orderBy: { createdAt: 'desc' },
-      include: { category: true }
+      include: {
+        category: { select: { name: true } },
+        vendor: { select: { name: true } },
+      }
     });
 
-    res.status(200).json({ success: true, data: products });
+    const safeProducts = products.map(sanitizeProduct);
+
+    res.status(200).json({ success: true, data: safeProducts });
   } catch (error: any) {
     console.error("Get My Products Error:", error);
     res.status(500).json({ error: "Cilad ayaa ka dhacday soo saarista alaabtaada." });
@@ -189,10 +230,15 @@ export const getProducts = async (_req: Request, res: Response): Promise<void> =
   try {
     const products = await prisma.product.findMany({
       orderBy: { createdAt: 'desc' },
-      include: { category: true, vendor: true }
+      include: {
+        category: { select: { name: true } },
+        vendor: { select: { name: true } },
+      }
     });
 
-    res.status(200).json({ success: true, data: products });
+    const safeProducts = products.map(sanitizeProduct);
+
+    res.status(200).json({ success: true, data: safeProducts });
   } catch (error: any) {
     console.error("Get Products Error:", error);
     res.status(500).json({ error: "Cilad ayaa ka dhacday soo saarista alaabooyinka." });
@@ -206,7 +252,10 @@ export const getProductById = async (req: Request, res: Response): Promise<void>
 
     const product = await prisma.product.findUnique({
       where: { id: productId },
-      include: { category: true, vendor: true }
+      include: {
+        category: { select: { name: true } },
+        vendor: { select: { name: true } },
+      }
     });
 
     if (!product) {
@@ -214,7 +263,7 @@ export const getProductById = async (req: Request, res: Response): Promise<void>
       return;
     }
 
-    res.status(200).json({ success: true, data: product });
+    res.status(200).json({ success: true, data: sanitizeProduct(product) });
   } catch (error: any) {
     console.error("Get Product By ID Error:", error);
     res.status(500).json({ error: "Cilad ayaa ka dhacday soo saarista alaabta." });
@@ -235,10 +284,22 @@ export const updateProduct = async (req: AuthRequest, res: Response): Promise<vo
       }
     }
 
+    const existingProduct = await prisma.product.findUnique({ where: { id: productId } });
+    if (!existingProduct) {
+      res.status(404).json({ error: "Alaabta la doonayo in la cusbooneysiiyo ma jirto." });
+      return;
+    }
+
+    const currentVendorId = await getTargetVendorId(undefined, req.user?.id, req.user?.email);
+    if (req.user?.role !== 'ADMIN' && existingProduct.vendorId !== currentVendorId) {
+      res.status(403).json({ error: "Umaramaidid inaad cusbooneysiiso alaab aannad lehayn." });
+      return;
+    }
+
     const { name, title, price, originalPrice, description, category, categoryId, stock } = payload;
     const updateData: Record<string, any> = {};
 
-    if (name || title) updateData.name = name || title;
+    if (name || title) updateData.name = (name || title).trim();
     if (description !== undefined) updateData.description = description;
 
     if (price !== undefined) {
@@ -256,85 +317,73 @@ export const updateProduct = async (req: AuthRequest, res: Response): Promise<vo
       if (!isNaN(parsedStock)) updateData.stock = parsedStock;
     }
 
-    // MULTIPLE IMAGES UPLOAD ON UPDATE
-    let imageUrls: string[] = payload.existingImages
+    let finalImages: string[] = payload.existingImages
       ? (Array.isArray(payload.existingImages) ? payload.existingImages : [payload.existingImages])
-      : [];
+      : [...existingProduct.images];
 
+    let fileList: Express.Multer.File[] = [];
     if (req.files) {
-      const fileList: Express.Multer.File[] = Array.isArray(req.files)
-        ? req.files
-        : Object.values(req.files).flat();
-
-      for (const file of fileList) {
-        const fileExt = file.originalname.split('.').pop() || 'png';
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('product-images')
-          .upload(fileName, file.buffer, { contentType: file.mimetype, upsert: true });
-
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(fileName);
-          if (urlData?.publicUrl) imageUrls.push(urlData.publicUrl);
-        }
-      }
+      fileList = Array.isArray(req.files) ? req.files : Object.values(req.files).flat();
+    } else if (req.file) {
+      fileList = [req.file];
     }
 
-    if (imageUrls.length > 0) {
-      updateData.images = imageUrls;
-      updateData.image = imageUrls[0];
+    if (fileList.length > 0) {
+      const newUrls = await Promise.all(fileList.map(file => uploadFileToSupabase(file)));
+      const validNewUrls = newUrls.filter((url): url is string => url !== null);
+      finalImages = [...finalImages, ...validNewUrls];
+    }
+
+    if (finalImages.length > 0) {
+      updateData.images = finalImages;
+      updateData.image = finalImages[0];
     } else if (payload.image) {
       updateData.image = payload.image;
     }
 
-    if (categoryId) {
-      const catExists = await prisma.category.findUnique({ where: { id: String(categoryId) } });
-      if (catExists) updateData.categoryId = catExists.id;
-    } else if (category) {
-      const catName = String(category).trim();
-      const existingCat = await prisma.category.findFirst({
-        where: { name: { equals: catName, mode: 'insensitive' } }
-      });
-
-      if (existingCat) {
-        updateData.categoryId = existingCat.id;
-      } else {
-        const newCat = await prisma.category.create({ data: { name: catName } });
-        updateData.categoryId = newCat.id;
-      }
+    const resolvedCategoryId = await resolveCategoryId(categoryId, category);
+    if (resolvedCategoryId) {
+      updateData.categoryId = resolvedCategoryId;
     }
 
     const updatedProduct = await prisma.product.update({
       where: { id: productId },
       data: updateData,
+      include: {
+        category: { select: { name: true } },
+        vendor: { select: { name: true } },
+      }
     });
 
-    res.status(200).json({ success: true, message: "Alaabta waa la cusbooneysiiyay!", data: updatedProduct });
+    res.status(200).json({ success: true, message: "Alaabta waa la cusbooneysiiyay!", data: sanitizeProduct(updatedProduct) });
   } catch (error: any) {
     console.error("Update Product Error:", error);
-    if (error.code === 'P2025') {
-      res.status(404).json({ error: "Alaabta la doonayo in la cusbooneysiiyo ma jirto." });
-      return;
-    }
     res.status(500).json({ error: "Cilad ayaa ka dhacday cusbooneysiinta alaabta." });
   }
 };
 
 // 6. TIRTIRISTA ALAABTA (DELETE PRODUCT)
-export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
+export const deleteProduct = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const productId = String(req.params.id);
+
+    const existingProduct = await prisma.product.findUnique({ where: { id: productId } });
+    if (!existingProduct) {
+      res.status(404).json({ error: "Alaabta la doonayo in la tirtiro ma jirto." });
+      return;
+    }
+
+    const currentVendorId = await getTargetVendorId(undefined, req.user?.id, req.user?.email);
+    if (req.user?.role !== 'ADMIN' && existingProduct.vendorId !== currentVendorId) {
+      res.status(403).json({ error: "Umaramaidid inaad tirtirto alaab aannad lehayn." });
+      return;
+    }
 
     await prisma.product.delete({ where: { id: productId } });
 
     res.status(200).json({ success: true, message: "Alaabta si toos ah ayaa loo tirtiray." });
   } catch (error: any) {
     console.error("Delete Product Error:", error);
-    if (error.code === 'P2025') {
-      res.status(404).json({ error: "Alaabta la doonayo in la tirtiro ma jirto." });
-      return;
-    }
     res.status(500).json({ error: "Cilad ayaa ka dhacday tirtirista alaabta." });
   }
 };
