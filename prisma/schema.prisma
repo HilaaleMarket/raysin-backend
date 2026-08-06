@@ -52,60 +52,61 @@ enum PaymentProvider {
 // ==========================================
 
 model User {
-  id           String    @id @default(uuid())
+  id           String   @id @default(uuid())
   name         String
-  email        String?   @unique
-  phone        String?   @unique
+  email        String?  @unique
+  phone        String?  @unique
   password     String
-  role         Role      @default(user)
+  role         Role     @default(user)
   city         String?
   avatar       String?
-  referralCode String?   @unique
+  referralCode String?  @unique
   referredById String?
-  referredBy   User?     @relation("UserReferrals", fields: [referredById], references: [id])
-  referrals    User[]    @relation("UserReferrals")
-  points       Int       @default(0)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  referredBy   User?    @relation("UserReferrals", fields: [referredById], references: [id])
+  referrals    User[]   @relation("UserReferrals")
+  points       Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  wallet       Wallet?
-  orders       Order[]
-  reviews      Review[]
+  wallet  Wallet?
+  orders  Order[]
+  reviews Review[]
 
   @@index([phone])
   @@index([email])
 }
 
 model Vendor {
-  id             String        @id @default(uuid())
-  name           String
-  email          String?       @unique
-  password       String
-  phone          String?       @unique
-  shopName       String?
-  logo           String?       
-  banner         String?       
-  
-  merchantNumber String?       
-  paymentMethod  String?       
-  city           String?       
-  district       String?       
-  address        String?       
-  latitude       Float?        
-  longitude      Float?        
+  id       String  @id @default(uuid())
+  name     String
+  email    String? @unique
+  password String
+  phone    String? @unique
+  shopName String?
+  logo     String?
+  banner   String?
 
-  status         String        @default("pending")
-  balance        Float         @default(0.0)
-  totalSales     Float         @default(0.0)
-  tier           VendorTier    @default(STANDARD)
-  commissionRate Float         @default(0.10)
-  rating         Float         @default(5.0)
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  merchantNumber String?
+  paymentMethod  String?
+  city           String?
+  district       String?
+  address        String?
+  latitude       Float?
+  longitude      Float?
 
-  products       Product[]
-  orders         Order[]
-  transactions   Transaction[]
+  status         String     @default("pending")
+  balance        Float      @default(0.0)
+  totalSales     Float      @default(0.0)
+  tier           VendorTier @default(STANDARD)
+  commissionRate Float      @default(0.10)
+  rating         Float      @default(5.0)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  products     Product[]
+  orders       Order[]
+  transactions Transaction[]
+  vendorWallet VendorWallet? // 🟢 LA HAGAAJIYAY: Opposite relation field ku xiran VendorWallet
 
   @@index([status])
   @@index([phone])
@@ -122,7 +123,7 @@ model Category {
   image     String?
   products  Product[]
   createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt // 🟢 HAGAAN: Waa la ka saaray @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Product {
@@ -130,37 +131,35 @@ model Product {
   name          String
   description   String?
   price         Float
-  originalPrice Float?   // Qiimihii hore (Discount) si uu UI-ga ugu muuqdo
+  originalPrice Float?
   stock         Int      @default(0)
   sku           String?  @unique
-  image         String?  
-  images        String[] @default([]) 
+  image         String?
+  images        String[] @default([])
   tags          String[] @default([])
   isFeatured    Boolean  @default(false)
-  
-  // 🛡️ SOFT DELETE & STATUS MANAGEMENT (KUWAAN AYAA KA DHIMANAA)
-  isDeleted     Boolean  @default(false)
-  status        String   @default("ACTIVE") // ACTIVE, ARCHIVED, OUT_OF_STOCK
-  
-  vendorId      String
-  // 🛡️ Restrict/NoAction ama No Cascade: Waxaa loo badalay Restrict si aan vendor-ka iyo orders-kiisa looga delete-garayn xisaabta
-  vendor        Vendor   @relation(fields: [vendorId], references: [id], onDelete: Restrict)
-  
-  categoryId    String?
-  category      Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  isDeleted Boolean @default(false)
+  status    String  @default("ACTIVE")
 
-  orderItems    OrderItem[]
-  reviews       Review[]
+  vendorId String
+  vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Restrict)
 
-  currencyPreference String @default("USD") // "USD" ama "SLSH" ama "BOTH"
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderItems OrderItem[]
+  reviews    Review[]
+
+  currencyPreference String @default("USD")
 
   @@index([vendorId])
   @@index([categoryId])
   @@index([name])
-  @@index([isDeleted]) // 🚀 Index cusub si loo mashiineeyo query-yada filtering-ka Soft Delete-ka
+  @@index([isDeleted])
 }
 
 model Review {
@@ -182,46 +181,46 @@ model Review {
 // ==========================================
 
 model Order {
-  id              String      @id @default(uuid())
-  orderNumber     String      @unique @default(uuid())
-  
-  userId          String?
-  user            User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  id          String @id @default(uuid())
+  orderNumber String @unique @default(uuid())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   customerName    String
   customerEmail   String
   customerPhone   String
   shippingAddress String
   city            String
-  notes           String?     
+  notes           String?
 
-  totalAmount     Float
-  status          OrderStatus @default(PENDING) // 🟢 HAGAAN: Enums la waafajiyay
-  
-  vendorId        String?
-  vendor          Vendor?     @relation(fields: [vendorId], references: [id])
-  
-  orderItems      OrderItem[]
-  payments        Payment[]   // 🟢 HAGAAN: Xiriirka Payment-ka oo la dhameystiray
-  transactions    Transaction[]
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  totalAmount Float
+  status      OrderStatus @default(PENDING)
+
+  vendorId String?
+  vendor   Vendor? @relation(fields: [vendorId], references: [id])
+
+  orderItems   OrderItem[]
+  payments     Payment[]
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([vendorId])
   @@index([userId])
 }
 
 model VendorWallet {
-  id              String   @id @default(uuid())
-  vendorId        String   @unique
-  vendor          Vendor   @relation(fields: [vendorId], references: [id])
-  
-  accumulatedDebt Float    @default(0.0) // Deynta komishanka ee ururtay (USD ama SLSH)
-  creditLimit     Float    @default(20.0) // Xadka cas (e.g. $20.00 ama ilaa 170,000 SLSH)
-  isLocked        Boolean  @default(false) // Haddii uu xadka gaaro, akoonku waa la blokiyay
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id       String @id @default(uuid())
+  vendorId String @unique
+  vendor   Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  accumulatedDebt Float   @default(0.0)
+  creditLimit     Float   @default(20.0)
+  isLocked        Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model OrderItem {
@@ -261,7 +260,7 @@ model Transaction {
   provider    PaymentProvider?
   status      PaymentStatus    @default(PENDING)
   referenceId String?          @unique
-  type        String           @default("PURCHASE") 
+  type        String           @default("PURCHASE")
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
