@@ -136,7 +136,6 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
       fileList = [req.file];
     }
 
-    // Parallel Uploading (Dardargelin Supabase upload-ka)
     if (fileList.length > 0) {
       const results = await Promise.all(fileList.map(file => uploadFileToSupabase(file)));
       uploadedUrls = results.filter((url): url is string => url !== null);
@@ -162,6 +161,8 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
         image: uploadedUrls[0] || payload.image || '',
         images: uploadedUrls,
         vendorId: targetVendorId,
+        isDeleted: false, // 🛡️ Hakinta tir-tirida
+        status: 'ACTIVE',  // 🛡️ Alaabta active ka dhig
         ...(resolvedCategoryId ? { categoryId: resolvedCategoryId } : {}),
       },
       include: {
@@ -208,7 +209,10 @@ export const getMyProducts = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     const products = await prisma.product.findMany({
-      where: { vendorId: targetVendorId },
+      where: { 
+        vendorId: targetVendorId,
+        isDeleted: false // 🛡️ Vendor-ku MA ARAKO alaabta uu hore u tirtiray
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         category: { select: { name: true } },
@@ -225,10 +229,14 @@ export const getMyProducts = async (req: AuthRequest, res: Response): Promise<vo
   }
 };
 
-// 3. SOO SAARISTA DHAMMAAN ALAABTA (GET ALL PRODUCTS)
+// 3. SOO SAARISTA DHAMMAAN ALAABTA (GET ALL PRODUCTS FOR BUYERS)
 export const getProducts = async (_req: Request, res: Response): Promise<void> => {
   try {
     const products = await prisma.product.findMany({
+      where: {
+        isDeleted: false, // 🛡️ IIBSADUHU MA ARAKO alaabta la tirtiray
+        status: 'ACTIVE'   // 🛡️ Kaliya kuwa active ah
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         category: { select: { name: true } },
@@ -250,8 +258,11 @@ export const getProductById = async (req: Request, res: Response): Promise<void>
   try {
     const productId = String(req.params.id);
 
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
+    const product = await prisma.product.findFirst({
+      where: { 
+        id: productId,
+        isDeleted: false // 🛡️ Laguma heli karo ID-ga alaab tirtiran
+      },
       include: {
         category: { select: { name: true } },
         vendor: { select: { name: true } },
@@ -259,7 +270,7 @@ export const getProductById = async (req: Request, res: Response): Promise<void>
     });
 
     if (!product) {
-      res.status(404).json({ error: "Alaabta la doonayo ma jirto." });
+      res.status(404).json({ error: "Alaabta la doonayo ma jirto ama waa la tirtiray." });
       return;
     }
 
@@ -284,7 +295,10 @@ export const updateProduct = async (req: AuthRequest, res: Response): Promise<vo
       }
     }
 
-    const existingProduct = await prisma.product.findUnique({ where: { id: productId } });
+    const existingProduct = await prisma.product.findFirst({ 
+      where: { id: productId, isDeleted: false } 
+    });
+
     if (!existingProduct) {
       res.status(404).json({ error: "Alaabta la doonayo in la cusbooneysiiyo ma jirto." });
       return;
@@ -362,7 +376,7 @@ export const updateProduct = async (req: AuthRequest, res: Response): Promise<vo
   }
 };
 
-// 6. TIRTIRISTA ALAABTA (DELETE PRODUCT)
+// 6. TIRTIRISTA AMAANKA AH (SOFT DELETE PRODUCT)
 export const deleteProduct = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const productId = String(req.params.id);
@@ -379,7 +393,16 @@ export const deleteProduct = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    await prisma.product.delete({ where: { id: productId } });
+    // 🛡️ SOFT DELETE IMPLEMENTATION:
+    // Halkii toos Database-ka looga saari lahaa, waxaa loo dhigayaa `isDeleted: true` iyo `status: ARCHIVED`
+    // Tani waxay dhowreysa xisaabtii iyo amarradii (Orders) hore ee macamiilku ku iibsadeen!
+    await prisma.product.update({
+      where: { id: productId },
+      data: {
+        isDeleted: true,
+        status: 'ARCHIVED'
+      }
+    });
 
     res.status(200).json({ success: true, message: "Alaabta si toos ah ayaa loo tirtiray." });
   } catch (error: any) {

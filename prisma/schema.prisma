@@ -138,8 +138,13 @@ model Product {
   tags          String[] @default([])
   isFeatured    Boolean  @default(false)
   
+  // 🛡️ SOFT DELETE & STATUS MANAGEMENT (KUWAAN AYAA KA DHIMANAA)
+  isDeleted     Boolean  @default(false)
+  status        String   @default("ACTIVE") // ACTIVE, ARCHIVED, OUT_OF_STOCK
+  
   vendorId      String
-  vendor        Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  // 🛡️ Restrict/NoAction ama No Cascade: Waxaa loo badalay Restrict si aan vendor-ka iyo orders-kiisa looga delete-garayn xisaabta
+  vendor        Vendor   @relation(fields: [vendorId], references: [id], onDelete: Restrict)
   
   categoryId    String?
   category      Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -153,6 +158,7 @@ model Product {
   @@index([vendorId])
   @@index([categoryId])
   @@index([name])
+  @@index([isDeleted]) // 🚀 Index cusub si loo mashiineeyo query-yada filtering-ka Soft Delete-ka
 }
 
 model Review {
