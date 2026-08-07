@@ -1,5 +1,3 @@
-// src/middleware/authMiddleware.ts
-
 export {
   AuthUserPayload,
   AuthenticatedRequest,
