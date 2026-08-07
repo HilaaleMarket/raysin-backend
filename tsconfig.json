@@ -11,8 +11,7 @@
     "allowJs": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "types": ["node", "express", "multer"]
+    "forceConsistentCasingInFileNames": true
   },
   "include": [
     "src/**/*"
