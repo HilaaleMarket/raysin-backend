@@ -11,7 +11,7 @@ export interface AuthUserPayload {
   type?: string;
 }
 
-// Interface taageeraya req.user, req.userId, req.vendorId iyo req.userRole
+// Extends Express Request si uu req.body, req.params, req.headers, req.query u yeesho
 export interface AuthenticatedRequest extends Request {
   user?: AuthUserPayload;
   userId?: string;
@@ -19,7 +19,7 @@ export interface AuthenticatedRequest extends Request {
   userRole?: string;
 }
 
-export type AuthRequest = AuthenticatedRequest;
+export interface AuthRequest extends AuthenticatedRequest {}
 
 export const authenticateToken = (
   req: AuthenticatedRequest,
@@ -40,7 +40,6 @@ export const authenticateToken = (
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
 
-    // Direct object assignment
     req.user = {
       id: decoded.id || decoded.userId || decoded.vendorId,
       email: decoded.email,
@@ -48,7 +47,6 @@ export const authenticateToken = (
       shopName: decoded.shopName,
     };
 
-    // Backward compatibility
     const type = decoded.type ? String(decoded.type).toUpperCase() : '';
     const role = decoded.role ? String(decoded.role).toUpperCase() : 'USER';
 
