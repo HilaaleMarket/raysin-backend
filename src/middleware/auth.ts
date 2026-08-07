@@ -1,80 +1,96 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-// 🎯 Fure-yaasha JWT secret-ka (ku kaydi .env faylkaaga)
-const JWT_SECRET = process.env.JWT_SECRET || 'raysin_secret_key_12345';
+const JWT_SECRET = process.env.JWT_SECRET || 'e8b9f42c12a86c07d35b912f718bc89456f08127389ab40112';
 
-// Sida uu u eg yahay Payload-ka JWT-gaaga
 export interface AuthUserPayload {
-    id: string;
-    email: string;
-    role: 'USER' | 'VENDOR' | 'ADMIN';
-    shopName?: string;
+  id: string;
+  email?: string;
+  role: 'USER' | 'VENDOR' | 'ADMIN' | string;
+  shopName?: string;
+  type?: string;
 }
 
-// Ku dar 'user' Custom Property si uu Express Request u aqoodo
+// Interface taageeraya req.user, req.userId, req.vendorId iyo req.userRole
 export interface AuthenticatedRequest extends Request {
-    user?: AuthUserPayload;
+  user?: AuthUserPayload;
+  userId?: string;
+  vendorId?: string;
+  userRole?: string;
 }
 
-/**
- * 🔒 Middleware-ka Guud ee Hubiya Token-ka (Authenticate)
- */
+export type AuthRequest = AuthenticatedRequest;
+
 export const authenticateToken = (
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-) => {
-    // 1. Ka soo saar Header-ka Authorization (waxay u imanaysaa "Bearer <token>")
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
 
-    // Haddii uu Token-ku vanti yahay
-    if (!token) {
-        return res.status(401).json({
-            success: false,
-            error: 'Access Denied: Wax token ah oo la soo meelayn waayay. Fadlan soo gal koontadaada.',
-        });
+  if (!token) {
+    res.status(401).json({
+      success: false,
+      error: 'Access Denied: Wax token ah oo la soo meelayn waayay.',
+    });
+    return;
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+
+    // Direct object assignment
+    req.user = {
+      id: decoded.id || decoded.userId || decoded.vendorId,
+      email: decoded.email,
+      role: (decoded.role || decoded.type || 'USER').toUpperCase(),
+      shopName: decoded.shopName,
+    };
+
+    // Backward compatibility
+    const type = decoded.type ? String(decoded.type).toUpperCase() : '';
+    const role = decoded.role ? String(decoded.role).toUpperCase() : 'USER';
+
+    if (type === 'VENDOR' || role === 'VENDOR') {
+      req.vendorId = decoded.id || decoded.vendorId;
+      req.userRole = 'VENDOR';
+    } else {
+      req.userId = decoded.id || decoded.userId;
+      req.userRole = role;
     }
 
-    try {
-        // 2. Hubi (Verify) saxnimada Token-ka
-        const decoded = jwt.verify(token, JWT_SECRET) as AuthUserPayload;
-
-        // 3. Ku dhibic xogta decoded-ka ah `req.user`
-        req.user = decoded;
-
-        // U gudb wax-ka-qabashada middleware-ka ama controller-ka xiga
-        next();
-    } catch (error) {
-        console.error('JWT Verification Error:', error);
-        return res.status(403).json({
-            success: false,
-            error: 'Token-ku waa khaldan yahay ama waa uu dhacay (Expired).',
-        });
-    }
+    next();
+  } catch (error) {
+    console.error('JWT Verification Error:', error);
+    res.status(403).json({
+      success: false,
+      error: 'Token-ku waa khaldan yahay ama waa uu dhacay (Expired).',
+    });
+    return;
+  }
 };
 
-/**
- * 🏬 Middleware-ka Hubiya Door-ka (Role Check): VENDOR ama ADMIN oo kaliya
- */
 export const requireVendorOrAdmin = (
-    req: AuthenticatedRequest,
-    res: Response,
-    next: NextFunction
-) => {
-    if (!req.user) {
-        return res.status(401).json({ success: false, error: 'User not authenticated' });
-    }
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  if (!req.user && !req.userRole) {
+    res.status(401).json({ success: false, error: 'User not authenticated' });
+    return;
+  }
 
-    const role = req.user.role?.toUpperCase();
+  const role = (req.user?.role || req.userRole || '').toUpperCase();
 
-    if (role === 'VENDOR' || role === 'ADMIN') {
-        return next();
-    }
+  if (role === 'VENDOR' || role === 'ADMIN') {
+    next();
+    return;
+  }
 
-    return res.status(403).json({
-        success: false,
-        error: 'Ogolaansho la aan: Qaybtan waxaa loo ogol yahay oo kaliya Iibiyeyaasha(Vendors).',
-    });
+  res.status(403).json({
+    success: false,
+    error: 'Ogolaansho la aan: Qaybtan waxaa loo ogol yahay oo kaliya Iibiyeyaasha(Vendors).',
+  });
+  return;
 };
