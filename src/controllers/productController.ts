@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import multer from 'multer';
 import { prisma } from '../server.js';
 import { supabase } from '../config/supabaseClient.js';
 
