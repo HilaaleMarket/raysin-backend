@@ -25,15 +25,14 @@ const pool = new pg.Pool({
 const adapter = new PrismaPg(pool);
 export const prisma = new PrismaClient({ adapter });
 
-// Allowed Domains
+// Dynamic Allowed Origins
 const allowedOrigins = [
   'https://hilaale.com',
   'https://www.hilaale.com',
   'https://api.hilaale.com',
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://localhost:8443'
-];
+  process.env.FRONTEND_URL,
+  process.env.CLIENT_URL,
+].filter(Boolean) as string[];
 
 const corsOptions: CorsOptions = {
   origin: (
@@ -52,10 +51,10 @@ const corsOptions: CorsOptions = {
   optionsSuccessStatus: 200
 };
 
-// 🟢 1. Dynamic CORS Middleware
+// CORS Middleware
 app.use(cors(corsOptions));
 
-// 🟢 2. Body Parsers oo la kordhiyay limit-kooda (Waa la saxay)
+// Body Parsers
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -68,7 +67,7 @@ app.get('/api/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'ok', message: 'Hilaale Backend is running smoothly 🚀' });
 });
 
-// 🟢 1. API Endpoints
+// API Endpoints
 app.use('/api/admin', adminRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
@@ -76,15 +75,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/vendors', vendorRoutes);
 app.use('/api', apiRoutes);
 
-// 🟢 2. Custom 404 Handler
-app.use((req: Request, res: Response) => {
-  res.status(404).json({
-    status: 'error',
-    message: '404 - Route or API Endpoint Not Found'
-  });
-});
-
-// 🟢 3. Global Express Error Handler
+// Global Express Error Handler
 app.use((err: any, req: Request, res: Response, next: any) => {
   console.error('❌ Internal Server Error:', err.stack);
 
@@ -95,7 +86,8 @@ app.use((err: any, req: Request, res: Response, next: any) => {
   });
 });
 
-// 🟢 4. Start Server
+// Start Server
 app.listen(PORT, () => {
-  console.log(`⚡️ [server]: Hilaale API Server wuxuu ka kiciyay http://localhost:${PORT}`);
+  const env = process.env.NODE_ENV || 'development';
+  console.log(`⚡️ [server]: Hilaale API Server is running on port ${PORT} [${env.toUpperCase()}]`);
 });
