@@ -11,12 +11,15 @@ export interface AuthUserPayload {
   type?: string;
 }
 
-// Extend toos ah oo ka timaada Express Request
 export interface AuthenticatedRequest extends Request {
   user?: AuthUserPayload;
   userId?: string;
   vendorId?: string;
   userRole?: string;
+  body: any;
+  params: any;
+  query: any;
+  headers: any;
   files?: any;
   file?: any;
 }

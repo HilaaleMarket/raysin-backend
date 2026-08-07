@@ -1,8 +1,18 @@
 import { Request, Response } from 'express';
-// import multer from 'multer';
 import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../server.js';
 import { supabase } from '../config/supabaseClient.js';
+
+// ==========================================
+// TYPE DEFINITIONS (FOR MULTER FILES)
+// ==========================================
+type MulterFile = {
+  originalname: string;
+  mimetype: string;
+  buffer: Buffer;
+  [key: string]: any;
+};
+
 // ==========================================
 // HELPER FUNCTIONS
 // ==========================================
@@ -40,9 +50,9 @@ const getTargetVendorId = async (vendorId?: string, userId?: string, userEmail?:
 };
 
 // 2. Sawirrada Upload-ka Supabase
-const uploadFileToSupabase = async (file: Express.Multer.File): Promise<string | null> => {
+const uploadFileToSupabase = async (file: MulterFile): Promise<string | null> => {
   try {
-    const fileExt = file.originalname.split('.').pop() || 'png';
+    const fileExt = file.originalname ? file.originalname.split('.').pop() || 'png' : 'png';
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
@@ -119,12 +129,12 @@ export const createProduct = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     let uploadedUrls: string[] = [];
-    let fileList: Express.Multer.File[] = [];
+    let fileList: MulterFile[] = [];
 
     if (req.files) {
-      fileList = Array.isArray(req.files) ? req.files : Object.values(req.files).flat();
+      fileList = Array.isArray(req.files) ? (req.files as MulterFile[]) : (Object.values(req.files).flat() as MulterFile[]);
     } else if (req.file) {
-      fileList = [req.file];
+      fileList = [req.file as MulterFile];
     }
 
     if (fileList.length > 0) {
@@ -326,11 +336,11 @@ export const updateProduct = async (req: AuthRequest, res: Response): Promise<vo
       ? (Array.isArray(payload.existingImages) ? payload.existingImages : [payload.existingImages])
       : [...existingProduct.images];
 
-    let fileList: Express.Multer.File[] = [];
+    let fileList: MulterFile[] = [];
     if (req.files) {
-      fileList = Array.isArray(req.files) ? req.files : Object.values(req.files).flat();
+      fileList = Array.isArray(req.files) ? (req.files as MulterFile[]) : (Object.values(req.files).flat() as MulterFile[]);
     } else if (req.file) {
-      fileList = [req.file];
+      fileList = [req.file as MulterFile];
     }
 
     if (fileList.length > 0) {
@@ -384,9 +394,6 @@ export const deleteProduct = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    // 🛡️ SOFT DELETE IMPLEMENTATION:
-    // Halkii toos Database-ka looga saari lahaa, waxaa loo dhigayaa `isDeleted: true` iyo `status: ARCHIVED`
-    // Tani waxay dhowreysa xisaabtii iyo amarradii (Orders) hore ee macamiilku ku iibsadeen!
     await prisma.product.update({
       where: { id: productId },
       data: {
