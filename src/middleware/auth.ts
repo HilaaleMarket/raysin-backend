@@ -1,4 +1,4 @@
-import express, { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'raysin_super_secret_key_2026';
@@ -11,15 +11,14 @@ export interface AuthUserPayload {
   type?: string;
 }
 
-// SI TOOS AH U EXTEND-GAREE express.Request HADDII AADAN ISTICMAALIN `Request` CAADI AH
-export interface AuthenticatedRequest extends express.Request {
+export interface AuthenticatedRequest extends Request {
   user?: AuthUserPayload;
   userId?: string;
   vendorId?: string;
   userRole?: string;
 }
 
-export interface AuthRequest extends AuthenticatedRequest {}
+export type AuthRequest = AuthenticatedRequest;
 
 export const authenticateToken = (
   req: AuthenticatedRequest,
