@@ -11,13 +11,14 @@ export interface AuthUserPayload {
   type?: string;
 }
 
+// Extend toos ah oo ka timaada Express Request
 export interface AuthenticatedRequest extends Request {
   user?: AuthUserPayload;
   userId?: string;
   vendorId?: string;
   userRole?: string;
-  files?: Express.Multer.File[] | { [fieldname: string]: Express.Multer.File[] } | any;
-  file?: Express.Multer.File | any;
+  files?: any;
+  file?: any;
 }
 
 export interface AuthRequest extends AuthenticatedRequest {}

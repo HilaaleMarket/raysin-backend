@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import multer from 'multer';
+// import multer from 'multer';
 import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../server.js';
 import { supabase } from '../config/supabaseClient.js';
