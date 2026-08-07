@@ -11,20 +11,16 @@ export interface AuthUserPayload {
   type?: string;
 }
 
-// Extends express Request directly to guarantee body, params, query, headers are inherited
 export interface AuthenticatedRequest extends Request {
   user?: AuthUserPayload;
   userId?: string;
   vendorId?: string;
   userRole?: string;
+  files?: Express.Multer.File[] | { [fieldname: string]: Express.Multer.File[] } | any;
+  file?: Express.Multer.File | any;
 }
 
-export interface AuthRequest extends Request {
-  user?: AuthUserPayload;
-  userId?: string;
-  vendorId?: string;
-  userRole?: string;
-}
+export interface AuthRequest extends AuthenticatedRequest {}
 
 export const authenticateToken = (
   req: AuthenticatedRequest,
