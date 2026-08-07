@@ -1,18 +1,8 @@
 import { Request, Response } from 'express';
 import multer from 'multer';
+import { AuthRequest } from '../middleware/auth.js';
 import { prisma } from '../server.js';
 import { supabase } from '../config/supabaseClient.js';
-
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    email?: string;
-    role?: string;
-  };
-  files?: Express.Multer.File[] | { [fieldname: string]: Express.Multer.File[] };
-  file?: Express.Multer.File;
-}
-
 // ==========================================
 // HELPER FUNCTIONS
 // ==========================================

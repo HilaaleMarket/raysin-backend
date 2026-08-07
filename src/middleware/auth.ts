@@ -11,25 +11,20 @@ export interface AuthUserPayload {
   type?: string;
 }
 
-// Halkan Express Request custom ah ayaan ku sameynay oo leh dhammaan Express properties
-export type AuthenticatedRequest<
-  P = any,
-  ResBody = any,
-  ReqBody = any,
-  ReqQuery = any
-> = Request<P, ResBody, ReqBody, ReqQuery> & {
+// Extends express Request directly to guarantee body, params, query, headers are inherited
+export interface AuthenticatedRequest extends Request {
   user?: AuthUserPayload;
   userId?: string;
   vendorId?: string;
   userRole?: string;
-};
+}
 
-export type AuthRequest<
-  P = any,
-  ResBody = any,
-  ReqBody = any,
-  ReqQuery = any
-> = AuthenticatedRequest<P, ResBody, ReqBody, ReqQuery>;
+export interface AuthRequest extends Request {
+  user?: AuthUserPayload;
+  userId?: string;
+  vendorId?: string;
+  userRole?: string;
+}
 
 export const authenticateToken = (
   req: AuthenticatedRequest,
