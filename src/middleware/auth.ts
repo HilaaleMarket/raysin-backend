@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'e8b9f42c12a86c07d35b912f718bc89456f08127389ab40112';
+const JWT_SECRET = process.env.JWT_SECRET || 'raysin_super_secret_key_2026';
 
 export interface AuthUserPayload {
   id: string;
