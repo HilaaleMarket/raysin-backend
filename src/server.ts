@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors, { CorsOptions } from 'cors';
 import dotenv from 'dotenv';
 import pg from 'pg';
@@ -15,7 +15,7 @@ import vendorRoutes from './routes/vendorRoutes.js';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT) || 5000;
 
 // Prisma Setup
 const pool = new pg.Pool({
@@ -58,12 +58,22 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Endpoints Test
-app.get('/', (req: Request, res: Response) => {
-  res.status(200).send('Hilaale API Server is LIVE 🚀');
+// Endpoints Test (Root Response)
+app.get('/', (_req: Request, res: Response) => {
+  res.status(200).send(`
+    <html>
+      <head><title>Hilaale API</title></head>
+      <body style="background:#080810;color:#00ffcc;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;">
+        <div style="text-align:center;">
+          <h1>🚀 Hilaale API Server is LIVE</h1>
+          <p style="color:#aaa;">System initialized successfully on Render.</p>
+        </div>
+      </body>
+    </html>
+  `);
 });
 
-app.get('/api/health', (req: Request, res: Response) => {
+app.get('/api/health', (_req: Request, res: Response) => {
   res.status(200).json({ status: 'ok', message: 'Hilaale Backend is running smoothly 🚀' });
 });
 
@@ -76,18 +86,18 @@ app.use('/api/vendors', vendorRoutes);
 app.use('/api', apiRoutes);
 
 // Global Express Error Handler
-app.use((err: any, req: Request, res: Response, next: any) => {
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
   console.error('❌ Internal Server Error:', err.stack);
 
   res.status(500).json({
     status: 'error',
     message: 'Internal Server Error',
-    error: err.message
+    error: err.message || 'Unknown error occurred'
   });
 });
 
-// Start Server
-app.listen(PORT, () => {
+// Start Server on 0.0.0.0
+app.listen(PORT, '0.0.0.0', () => {
   const env = process.env.NODE_ENV || 'development';
-  console.log(`⚡️ [server]: Hilaale API Server is running on port ${PORT} [${env.toUpperCase()}]`);
+  console.log(`⚡️ [server]: Hilaale API Server is running on http://0.0.0.0:${PORT} [${env.toUpperCase()}]`);
 });
